@@ -1,4 +1,4 @@
-// dither - v1.0.0-a - by vb :) 
+// dither - v1.0.0-a_01 - by vb :) 
 
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
@@ -73,8 +73,7 @@ int main(int argc, char **argv)
 	char *outName = NULL;
 	uint8_t *data = NULL;
 	uint8_t *yChannel = NULL;
-	
-	// here should be getopt
+
 	while ( (idklol = getopt(argc-1, argv+1, "yFd:f:s:R:G:B:A:Y:o:")) != -1){
 		switch (idklol) {
 			case 'y':
@@ -130,7 +129,7 @@ int main(int argc, char **argv)
 				break;
 		}
 	}
-	
+
 	// giving filename and checking if file exists
 	if (outName == NULL) { 
 		int16_t len = strlen(argv[1]);

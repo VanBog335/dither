@@ -7,8 +7,7 @@ files=(in/*.png)
 total=${#files[@]}
 count=0
 
-# Запускаем обработку в фоне с лимитом одновременных процессов
-max_procs=999  # можно увеличить, если у тебя много ядер
+max_procs=999
 running=0
 
 for infile in "${files[@]}"; do
