@@ -47,13 +47,15 @@ int dither(uint8_t *img, int32_t w, int32_t h,
 	uint8_t pix = tmpImg[i];
 	uint8_t pixx = 0;
 	switch(quantBits) {
+		case 0:  pixx = 0;
+			break;
 		case 1:  pixx = (pix>>7)*255;
 			break;
 		case 2:  pixx = (pix>>6)*255/3;
 			break;
 		case 26: pixx = pix/51*51;
 			break;
-		case 27: pixx = (((pix*6/255)<<1)*85)>>2;
+		case 27: pixx = (pix*6/255*85)>>1;
 			break;
 		case 3:  pixx = (pix>>5)*255/7;
 			break;
@@ -67,7 +69,7 @@ int dither(uint8_t *img, int32_t w, int32_t h,
 			break;
 		case 8:  pixx = pix;
 			break;
-		default: pixx = (pix>>7)*255;
+		default: pixx = 255;
 	}
 	int16_t err = pix - pixx;
 

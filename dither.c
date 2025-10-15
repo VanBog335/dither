@@ -1,4 +1,4 @@
-// dither - v1.0.0-a_01 - by vb :) 
+// dither - v1.0.0-a_02 - by vb :) 
 
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"

@@ -11,6 +11,8 @@ int main(int argc, char **argv)
 		nob_cmd_append(&cmd, "-Wall", "-Wextra", "-lm");
 		
 		nob_cmd_append(&cmd, "-O2", "-s");
+		nob_cmd_append(&cmd, "-static");
+		//nob_cmd_append(&cmd, "-static-libgcc");
 		
 		nob_cc_output(&cmd, "dither");
 		nob_cc_inputs(&cmd, "dither.c");

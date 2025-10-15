@@ -17,7 +17,7 @@ void dith_usage(char **argv)
 	printf("\tforce overwrite\n");
 	printf("\t[default: false]\n\n");
 
-	printf("-<R/G/B/A/Y> <1/2/2.6/2.7/3-8>\n");
+	printf("-<R/G/B/A/Y> <0/1/2/2.6/2.7/3-8>\n");
 	printf("\tbits per channel\n");
 	printf("\t[default: 2.6 2.7 2.6 3 1]\n\n");
 
