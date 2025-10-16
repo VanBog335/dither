@@ -47,7 +47,7 @@ int dither(uint8_t *img, int32_t w, int32_t h,
 	uint8_t pix = tmpImg[i];
 	uint8_t pixx = 0;
 	switch(quantBits) {
-		case 0:  pixx = 0;
+		case 0:  pixx = 255;
 			break;
 		case 1:  pixx = (pix>>7)*255;
 			break;

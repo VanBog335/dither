@@ -46,11 +46,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (!strcmp(argv[1], "-h")) {
+	if (**(argv+1) == '-') {
 		dith_usage(argv);
 		return 1;
 	}
-	
+
 	vb_da_ptr_init();
 
 	uint8_t dithType = FLOYDDITHER;
@@ -65,7 +65,7 @@ int main(int argc, char **argv)
 
 	uint8_t forceOverwrite = 0;
 	int8_t encoded = 0;
-	int32_t idklol = 0;
+	int32_t parsedArgGetOpt = 0;
 
 	char tmp[256] = "\0";
 
@@ -74,8 +74,8 @@ int main(int argc, char **argv)
 	uint8_t *data = NULL;
 	uint8_t *yChannel = NULL;
 
-	while ( (idklol = getopt(argc-1, argv+1, "yFd:f:s:R:G:B:A:Y:o:")) != -1){
-		switch (idklol) {
+	while ( (parsedArgGetOpt = getopt(argc-1, argv+1, "yFd:f:s:R:G:B:A:Y:o:")) != -1){
+		switch (parsedArgGetOpt) {
 			case 'y':
 				printf("Luma on\n");
 				lumaOn=1;

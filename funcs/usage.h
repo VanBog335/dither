@@ -28,6 +28,6 @@ void dith_usage(char **argv)
 	printf("\toutput file\n");
 	printf("\t[default: path/to/input-d.png]\n\n");
 
-	printf("-s <num>x<num>\n");
+	printf("-s <num>x<num> (WIP)\n");
 	printf("\tsize of image\n");
 }
