@@ -1,5 +1,5 @@
 # Error-Diffusion Dithering
-## ver. 1.0.0-a_02
+## v0.10.0
 
 ---
 
