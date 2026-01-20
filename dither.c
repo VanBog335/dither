@@ -7,6 +7,7 @@
 #include "stb/stb_sprintf.h"
 
 #include "vb_mm.h"
+#include "vb_flag_parser.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,7 +16,6 @@
 #include <math.h>
 #include <errno.h>
 #include <ctype.h>
-#include <getopt.h>
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define min(x, y) (((x) < (y)) ? (x) : (y))
@@ -39,6 +39,7 @@ stbir_resize( data, w, h, 0,
 */
 
 
+
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
@@ -46,7 +47,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (**(argv+1) == '-') {
+	vb_setVbArgc(argc);
+	vb_setVbArgv(argv);
+
+	if (vb_checkArg("-h") || vb_checkArg("--help") || vb_checkArg("-help")) {
 		dith_usage(argv);
 		return 1;
 	}
@@ -65,7 +69,8 @@ int main(int argc, char **argv)
 
 	uint8_t forceOverwrite = 0;
 	int8_t encoded = 0;
-	int32_t parsedArgGetOpt = 0;
+	int32_t p = 0;
+	int8_t verboseOutput = 0;
 
 	char tmp[256] = "\0";
 
@@ -74,61 +79,80 @@ int main(int argc, char **argv)
 	uint8_t *data = NULL;
 	uint8_t *yChannel = NULL;
 
-	while ( (parsedArgGetOpt = getopt(argc-1, argv+1, "yFd:f:s:R:G:B:A:Y:o:")) != -1){
-		switch (parsedArgGetOpt) {
-			case 'y':
-				printf("Luma on\n");
-				lumaOn=1;
-				break;
-			case 'F':
-				printf("Forced overwrite\n");
-				forceOverwrite=1;
-				break;
-			case 'd':
-				printf("Dither type: %s\n", optarg);
-				if (!strcmp("no", optarg)) dithType = 0; 
-				if (!strcmp("floyd", optarg)) dithType = 1; 
-				if (!strcmp("2d", optarg)) dithType = 2; 
-				break;
-			case 'f':
-				printf("Luma type: %s\n", optarg);
-				lumaType = atoi(optarg);
-				break;
-			case 's':
-				printf("Size: %s\n", optarg);
-				break;
-			case 'R':
-				printf("R: %s\n", optarg);
-				redBits = (int)(atof(optarg)*10)%10 == 0 ? atoi(optarg) : atof(optarg)*10;
-				break;
-			case 'G':
-				printf("G: %s\n", optarg);
-				greenBits = (int)(atof(optarg)*10)%10 == 0 ? atoi(optarg) : atof(optarg)*10;
-				break;
-			case 'B':
-				printf("B: %s\n", optarg);
-				blueBits = (int)(atof(optarg)*10)%10 == 0 ? atoi(optarg) : atof(optarg)*10;
-				break;
-			case 'A':
-				printf("A: %s\n", optarg);
-				alphaBits = (int)(atof(optarg)*10)%10 == 0 ? atoi(optarg) : atof(optarg)*10;
-				break;
-			case 'Y':
-				printf("Y: %s\n", optarg);
-				lumaBits = (int)(atof(optarg)*10)%10 == 0 ? atoi(optarg) : atof(optarg)*10;
-				break;
-			case 'o':
-				printf("Output filename: %s\n", optarg);
-				outName = optarg;
-				break;
-			case '?':
-				printf("Error found !\n");
-				dith_usage(argv);
-				vb_da_ptr_destroy();
-				return 1;
-				break;
-		}
+
+	if (vb_checkArg("-v")) {
+		printf("Toggled verbose output\n");
+		verboseOutput = 1;
 	}
+	
+	if (vb_checkArg("-y")) {
+		if (verboseOutput)
+			printf("Luma on\n");
+		lumaOn = 1;
+	}
+	
+	if (vb_checkArg("--force")) {
+		if (verboseOutput)
+			printf("Forced overwrite\n");
+		forceOverwrite=1;
+	}
+	
+	if (p = vb_checkArgWithParams("-d", 1)) {
+		if (verboseOutput)
+			printf("Dither type: %s\n", argv[p+1]);
+		if (!strcmp("no", argv[p+1])) dithType = 0; 
+		if (!strcmp("floyd", argv[p+1])) dithType = 1; 
+		if (!strcmp("2d", argv[p+1])) dithType = 2; 
+	}
+	
+	if (p = vb_checkArgWithParams("-f", 1)) {
+		if (verboseOutput)
+			printf("Luma type: %s\n", argv[p+1]);
+		lumaType = atoi(argv[p+1]);
+	}
+	
+	if (p = vb_checkArgWithParams("-s", 2)) {
+		if (verboseOutput)
+			printf("Size: %s x %s\n", argv[p+1], argv[p+2]);
+		// WIP
+	}
+	
+	if (p = vb_checkArgWithParams("-R", 1)) {
+		if (verboseOutput)
+			printf("R: %s\n", argv[p+1]);
+		redBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
+	}
+	
+	if (p = vb_checkArgWithParams("-G", 1)) {
+		if (verboseOutput)
+			printf("G: %s\n", argv[p+1]);
+		greenBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
+	}
+	
+	if (p = vb_checkArgWithParams("-B", 1)) {
+		if (verboseOutput)
+			printf("B: %s\n", argv[p+1]);
+		blueBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
+	}
+	
+	if (p = vb_checkArgWithParams("-A", 1)) {
+		if (verboseOutput)
+			printf("A: %s\n", argv[p+1]);
+		alphaBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
+	}
+	
+	if (p = vb_checkArgWithParams("-Y", 1)) {
+		if (verboseOutput)
+			printf("Y: %s\n", argv[p+1]);
+		lumaBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
+	}
+	
+	if (p = vb_checkArgWithParams("-o", 1)) {
+		if (verboseOutput)
+			printf("Output filename: %s\n", argv[p+1]);
+		outName = argv[p+1];
+	}
+
 
 	// giving filename and checking if file exists
 	if (outName == NULL) { 

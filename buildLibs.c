@@ -19,3 +19,5 @@
 #include "qoi.h"
 #define VB_MM_IMPLEMENTATION
 #include "vb_mm.h"
+#define VB_FLAG_PARSER_IMPLEMENTATION
+#include "vb_flag_parser.h"
