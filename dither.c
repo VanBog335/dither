@@ -184,10 +184,9 @@ int main(int argc, char **argv)
 			tmp[strlen(tmp)-1] = '\0';
 
 			if (strcmp(tmp, "y")) {
-				puts("false");
 				vb_da_ptr_destroy();
 				return 2;
-			} else puts("true");
+			};
 		}
 	}
 
