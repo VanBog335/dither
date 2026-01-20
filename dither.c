@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 		forceOverwrite=1;
 	}
 	
-	if (p = vb_checkArgWithParams("-d", 1)) {
+	if ((p = vb_checkArgWithParams("-d", 1))) {
 		if (verboseOutput)
 			printf("Dither type: %s\n", argv[p+1]);
 		if (!strcmp("no", argv[p+1])) dithType = 0; 
@@ -105,49 +105,49 @@ int main(int argc, char **argv)
 		if (!strcmp("2d", argv[p+1])) dithType = 2; 
 	}
 	
-	if (p = vb_checkArgWithParams("-f", 1)) {
+	if ((p = vb_checkArgWithParams("-f", 1))) {
 		if (verboseOutput)
 			printf("Luma type: %s\n", argv[p+1]);
 		lumaType = atoi(argv[p+1]);
 	}
 	
-	if (p = vb_checkArgWithParams("-s", 2)) {
+	if ((p = vb_checkArgWithParams("-s", 2))) {
 		if (verboseOutput)
 			printf("Size: %s x %s\n", argv[p+1], argv[p+2]);
 		// WIP
 	}
 	
-	if (p = vb_checkArgWithParams("-R", 1)) {
+	if ((p = vb_checkArgWithParams("-R", 1))) {
 		if (verboseOutput)
 			printf("R: %s\n", argv[p+1]);
 		redBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
 	
-	if (p = vb_checkArgWithParams("-G", 1)) {
+	if ((p = vb_checkArgWithParams("-G", 1))) {
 		if (verboseOutput)
 			printf("G: %s\n", argv[p+1]);
 		greenBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
 	
-	if (p = vb_checkArgWithParams("-B", 1)) {
+	if ((p = vb_checkArgWithParams("-B", 1))) {
 		if (verboseOutput)
 			printf("B: %s\n", argv[p+1]);
 		blueBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
 	
-	if (p = vb_checkArgWithParams("-A", 1)) {
+	if ((p = vb_checkArgWithParams("-A", 1))) {
 		if (verboseOutput)
 			printf("A: %s\n", argv[p+1]);
 		alphaBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
 	
-	if (p = vb_checkArgWithParams("-Y", 1)) {
+	if ((p = vb_checkArgWithParams("-Y", 1))) {
 		if (verboseOutput)
 			printf("Y: %s\n", argv[p+1]);
 		lumaBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
 	
-	if (p = vb_checkArgWithParams("-o", 1)) {
+	if ((p = vb_checkArgWithParams("-o", 1))) {
 		if (verboseOutput)
 			printf("Output filename: %s\n", argv[p+1]);
 		outName = argv[p+1];
