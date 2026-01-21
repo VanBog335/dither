@@ -1,5 +1,38 @@
 /*
-	vanbog_flag_parser -- v0.0.0  -- https://github.com/VanBog335
+	vanbog_flag_parser -- v0.0.1  -- https://github.com/VanBog335
+	
+	to use, do this:
+	```c
+	#define VB_FLAG_PARSER_IMPLEMENTATION
+	#include "vb_flag_parser.h"
+	```
+	
+	example:
+	```c
+	#define VB_FLAG_PARSER_IMPLEMENTATION
+	#include "vb_flag_parser.h"
+	
+	int main(int argc, char **argv)
+	{
+		vb_setVbArgc(argc);
+		vb_setVbArgv(argv);
+		int p;
+		
+		if (vb_checkArg("-a")) {
+			printf("flag -a is present.\n");
+		}
+		
+		if ((p = vb_checkArg("-b"))) {
+			printf("flag -a is present in %d\n", p);
+		}
+		
+		if ((p = vb_checkArgWithParams("-c", 1))) {
+			printf("flag -c is present in %d with parameter \"%s\"\n", p, argv[p+1]);
+		}
+		
+		return 0;
+	}
+	```
 */
 
 #ifndef VB_FLAG_PARSER_H_
