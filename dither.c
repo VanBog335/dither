@@ -1,13 +1,13 @@
 // dither - v0.10.0 - by vb :) 
 
-#include "stb/stb_image.h"
-#include "stb/stb_image_write.h"
-#include "qoi.h"
-#include "stb/stb_image_resize2.h"
-#include "stb/stb_sprintf.h"
+#include "libs/stb_image.h"
+#include "libs/stb_image_write.h"
+#include "libs/qoi.h"
+#include "libs/stb_image_resize2.h"
+#include "libs/stb_sprintf.h"
 
-#include "vb_mm.h"
-#include "vb_flag_parser.h"
+#include "libs/vb_mm.h"
+#include "libs/vb_flag_parser.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +28,6 @@
 #define SIMPLEDITHER 2
 
 #include "funcs/dither.h"
-#include "funcs/parser-size.h"
 #include "funcs/usage.h"
 
 /*
@@ -71,6 +70,7 @@ int main(int argc, char **argv)
 	int8_t encoded = 0;
 	int32_t p = 0;
 	int8_t verboseOutput = 0;
+	uint8_t autoOutputFormat = 'p';
 
 	char tmp[256] = "\0";
 
@@ -147,6 +147,12 @@ int main(int argc, char **argv)
 		lumaBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
 	
+	if ((p = vb_checkArgWithParams("-O", 1))) {
+		if (verboseOutput)
+			printf("Output extention: %s\n", argv[p+1]);
+		if (!strcmp(argv[p+1], "qoi")) autoOutputFormat = 'q';
+	}
+	
 	if ((p = vb_checkArgWithParams("-o", 1))) {
 		if (verboseOutput)
 			printf("Output filename: %s\n", argv[p+1]);
@@ -155,24 +161,32 @@ int main(int argc, char **argv)
 
 
 	// giving filename and checking if file exists
-	if (outName == NULL) { 
-		int16_t len = strlen(argv[1]);
-		if (len < 5) {
-			printf("Error: filename is too short.\n");
+	if (outName == NULL) {
+		char* last_dot = strrchr(argv[1], '.');
+		if (!last_dot) {
+			printf("Error: Input file has no extension.\n");
 			vb_da_ptr_destroy();
 			return 1;
 		}
-
-		outName = vb_alloc(len + 10);
+		
+		size_t base_len = last_dot - argv[1];
+		
+		size_t needed_len = base_len + 10;
+		outName = vb_alloc(needed_len);
 		if (!outName) {
-			printf("vb_alloc() failed.\n");
+			printf("Error: Memory allocation failed.\n");
 			vb_da_ptr_destroy();
 			return 1;
 		}
-
-		strcpy(outName, argv[1]);
-		strcpy(outName + len - 4, "-d.png");
-		//strcpy(outName + len - 4, "-d.qoi");
+		
+		int written = snprintf(outName, needed_len, "%.*s%s", 
+				(int)base_len, argv[1], autoOutputFormat == 'q' ? "-d.qoi" : "-d.png");
+		
+		if (written < 0 || (size_t)written >= needed_len) {
+			printf("Error: Failed to construct output filename.\n");
+			vb_da_ptr_destroy();
+			return 1;
+		}
 	}
 
 	if (!forceOverwrite) {
@@ -189,6 +203,9 @@ int main(int argc, char **argv)
 			};
 		}
 	}
+	
+	
+
 
 	if (STR_ENDING(argv[1],".png") || STR_ENDING(argv[1],".jpg")) {
 		data = stbi_load(argv[1], &w, &h, NULL, 4);
@@ -239,13 +256,13 @@ int main(int argc, char **argv)
 			!dither(data, w, h, dithType, alphaBits, 4, 3)
 		){ vb_da_ptr_destroy(); return 1; }
 	}
-	
+
 	if (lumaOn) {
-	    for (int64_t i = 0; i < w*h; i++) {
-	        data[i*4 + 0] = yChannel[i];
-	        data[i*4 + 1] = yChannel[i];
-	        data[i*4 + 2] = yChannel[i];
-	    }
+		for (int64_t i = 0; i < w*h; i++) {
+			data[i*4 + 0] = yChannel[i];
+			data[i*4 + 1] = yChannel[i];
+			data[i*4 + 2] = yChannel[i];
+		}
 	}
 
 	for (int i = 0; i < w*h; i++) {
@@ -272,7 +289,6 @@ int main(int argc, char **argv)
 	}
 
 	vb_da_ptr_destroy();
-	free(data);
 
 	return 0;
 }

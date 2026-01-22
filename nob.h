@@ -1,4 +1,4 @@
-/* nob - v1.23.0 - Public Domain - https://github.com/tsoding/nob.h
+/* nob - v3.0.0 - Public Domain - https://github.com/tsoding/nob.h
 
    This library is the next generation of the [NoBuild](https://github.com/tsoding/nobuild) idea.
 
@@ -31,45 +31,80 @@
 
       Since Pure C does not have any namespaces we prefix each name of the API with the `nob_` to avoid any
       potential conflicts with any other names in your code. But sometimes it is very annoying and makes
-      the code noisy. If you know that none of the names from nob.h conflict with anything in your code
-      you can enable NOB_STRIP_PREFIX macro and just drop all the prefixes:
+      the code noisy. Because of that you can drop the `nob_` prefix.
 
       ```c
       // nob.c
       #define NOB_IMPLEMENTATION
-      #define NOB_STRIP_PREFIX
       #include "nob.h"
 
       int main(int argc, char **argv)
       {
-          NOB_GO_REBUILD_URSELF(argc, argv);
+          GO_REBUILD_URSELF(argc, argv);
           Cmd cmd = {0};
           cmd_append(&cmd, "cc", "-Wall", "-Wextra", "-o", "main", "main.c");
-          if (!cmd_run_sync(cmd)) return 1;
+          if (!cmd_run(&cmd)) return 1;
           return 0;
       }
       ```
 
-      Not all the names have strippable prefixes. All the redefinable names like `NOB_GO_REBUILD_URSELF`
-      for instance will retain their prefix even if NOB_STRIP_PREFIX is enabled. Notable exception is the
-      nob_log() function. Stripping away the prefix results in log() which was historically always referring
-      to the natural logarithmic function that is already defined in math.h. So there is no reason to strip
-      off the prefix for nob_log(). Another exception is nob_rename() which collides with the widely known
-      POSIX function rename(2) if you strip the prefix off.
+      If the lack of prefixes causes any problems you can disable the prefix stripping by defining
+      `NOB_UNSTRIP_PREFIX` feature macro before including "nob.h".
 
-      The prefixes are stripped off only on the level of preprocessor. The names of the functions in the
+      Not all the names have strippable prefixes. All the redefinable names like `NOB_REBUILD_URSELF`
+      for instance will retain their prefix always. Notable exception is the nob_log() function. Stripping
+      away the prefix results in log() which was historically always referring to the natural logarithmic
+      function that is already defined in math.h. So there is no reason to strip off the prefix for nob_log().
+      Another exception is nob_rename() which collides with the widely known POSIX function rename(2) if you
+      strip the prefix off.
+
+      The prefixes are stripped off only on the level of the preprocessor. The names of the functions in the
       compiled object file will still retain the `nob_` prefix. Keep that in mind when you FFI with nob.h
       from other languages (for whatever reason).
 
       If only few specific names create conflicts for you, you can just #undef those names after the
-      `#include <nob.h>` since they are macros anyway.
+      `#include <nob.h>` without enabling `NOB_UNSTRIP_PREFIX` since they are macros anyway.
+
+   # Macro Interface
+
+      All these macros are `#define`d by the user before including nob.h
+
+   ## Flags
+
+      Enable or disable certain aspects of nob.h
+
+      - NOB_IMPLEMENTATION - Enable definitions of the functions. By default only declarations are included.
+        See https://github.com/nothings/stb/blob/f58f558c120e9b32c217290b80bad1a0729fbb2c/docs/stb_howto.txt
+        for more info.
+      - NOB_WARN_DEPRECATED - Warn about the usage of deprecated function. We rarely actually remove deprecated functions,
+        but if you want to know what is discouraged you may want to enable this flag.
+      - NOB_EXPERIMENTAL_DELETE_OLD - Experimental feature that automatically removes `nob.old` files. It's unclear how well
+        it works on Windows, so it's experimental for now.
+      - NOB_UNSTRIP_PREFIX - do not strip the `nob_` prefixes from non-redefinable names.
+      - NOB_NO_ECHO - do not echo the actions various nob functions are doing (like nob_cmd_run(), nob_mkdir_if_not_exists(), etc).
+
+   ## Redefinable Macros
+
+      Redefine default behaviors of nob.h.
+
+      - NOBDEF - Appends additional things to function declarations. You can do something like `#define NOBDEF static inline`.
+      - NOB_ASSERT(condition) - Redefine which assert() nob.h shall use.
+      - NOB_REALLOC(oldptr, size) - Redefine which realloc() nob.h shall use.
+      - NOB_FREE(ptr) - Redefine which free() nob.h shall use.
+      - NOB_DEPRECATED(message) - Redefine how nob.h shall mark functions as deprecated.
+      - NOB_DA_INIT_CAP - Redefine initial capacity of Dynamic Arrays.
+      - NOB_TEMP_CAPACITY - Redefine the capacity of the temporary storate.
+      - NOB_REBUILD_URSELF(binary_path, source_path) - redefine how nob.h shall rebuild itself.
+      - NOB_WIN32_ERR_MSG_SIZE - Redefine the capacity of the buffer for error message on Windows.
 */
 
 #ifndef NOB_H_
 #define NOB_H_
 #ifdef _WIN32
-#define _CRT_SECURE_NO_WARNINGS (1)
-#endif
+#    ifndef _CRT_SECURE_NO_WARNINGS
+#        define _CRT_SECURE_NO_WARNINGS (1)
+#    endif // _CRT_SECURE_NO_WARNINGS
+#endif //  _WIN32
 
 #ifndef NOBDEF
 /*
@@ -94,16 +129,19 @@
 #define NOB_FREE free
 #endif /* NOB_FREE */
 
-// To suppress all the deprecation warnings do `#define NOB_DEPRECATED(...)` before including nob.h
-#ifndef NOB_DEPRECATED
-#    if defined(__GNUC__) || defined(__clang__)
-#        define NOB_DEPRECATED(message) __attribute__((deprecated(message)))
-#    elif defined(_MSC_VER)
-#        define NOB_DEPRECATED(message) __declspec(deprecated(message))
-#    else
-#        define NOB_DEPRECATED(...)
-#    endif
-#endif /* NOB_DEPRECATED */
+#ifdef NOB_WARN_DEPRECATED
+#    ifndef NOB_DEPRECATED
+#        if defined(__GNUC__) || defined(__clang__)
+#            define NOB_DEPRECATED(message) __attribute__((deprecated(message)))
+#        elif defined(_MSC_VER)
+#            define NOB_DEPRECATED(message) __declspec(deprecated(message))
+#        else
+#            define NOB_DEPRECATED(...)
+#        endif
+#    endif /* NOB_DEPRECATED */
+#else
+#    define NOB_DEPRECATED(...)
+#endif /* NOB_WARN_DEPRECATED */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -114,6 +152,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <limits.h>
+#include <time.h>
 
 #ifdef _WIN32
 #    define WIN32_LEAN_AND_MEAN
@@ -123,13 +162,26 @@
 #    define _WINCON_
 #    include <windows.h>
 #    include <direct.h>
+#    include <io.h>
 #    include <shellapi.h>
 #else
+#    ifdef __APPLE__
+#        include <mach-o/dyld.h>
+#    endif
+#    ifdef __FreeBSD__
+#        include <sys/sysctl.h>
+#    endif
 #    include <sys/types.h>
 #    include <sys/wait.h>
 #    include <sys/stat.h>
 #    include <unistd.h>
 #    include <fcntl.h>
+#    include <fcntl.h>
+#    include <dirent.h>
+#endif
+
+#ifdef __HAIKU__
+#   include <image.h>
 #endif
 
 #ifdef _WIN32
@@ -168,6 +220,14 @@ typedef enum {
 // Any messages with the level below nob_minimal_log_level are going to be suppressed.
 extern Nob_Log_Level nob_minimal_log_level;
 
+typedef void (nob_log_handler)(Nob_Log_Level level, const char *fmt, va_list args);
+
+NOBDEF void nob_set_log_handler(nob_log_handler *handler);
+NOBDEF nob_log_handler *nob_get_log_handler(void);
+
+NOBDEF nob_log_handler nob_default_log_handler;
+NOBDEF nob_log_handler nob_cancer_log_handler;
+
 NOBDEF void nob_log(Nob_Log_Level level, const char *fmt, ...) NOB_PRINTF_FORMAT(2, 3);
 
 // It is an equivalent of shift command from bash (do `help shift` in bash). It basically
@@ -199,6 +259,47 @@ NOBDEF bool nob_read_entire_dir(const char *parent, Nob_File_Paths *children);
 NOBDEF bool nob_write_entire_file(const char *path, const void *data, size_t size);
 NOBDEF Nob_File_Type nob_get_file_type(const char *path);
 NOBDEF bool nob_delete_file(const char *path);
+
+typedef enum {
+    // If the current file is a directory go inside of it.
+    NOB_WALK_CONT,
+    // If the current file is a directory do not go inside of it.
+    NOB_WALK_SKIP,
+    // Stop the recursive traversal process entirely.
+    NOB_WALK_STOP,
+} Nob_Walk_Action;
+
+typedef struct {
+    // The path to the visited file
+    const char *path;
+    // The type of the visited file
+    Nob_File_Type type;
+    // How nested we currently are in the directory tree
+    size_t level;
+    // User data supplied in Nob_Walk_Dir_Opt.data
+    void *data;
+    // The action nob_walk_dir_opt() must perform after the Nob_Walk_Func has returned.
+    // Default is NOB_WALK_CONT.
+    Nob_Walk_Action *action;
+} Nob_Walk_Entry;
+
+// A function that is called by nob_walk_dir_opt() on each visited file.
+// Nob_Walk_Entry provides the details about the visited file and also
+// expects you to modify the `action` in case you want to alter the
+// usual behavior of the recursive walking algorithm.
+//
+// If the function returns `false`, an error is assumed which causes the entire
+// recursive walking process to exit and nob_walk_dir_opt() return `false`.
+typedef bool (*Nob_Walk_Func)(Nob_Walk_Entry entry);
+
+typedef struct {
+    // User data passed to Nob_Walk_Entry.data
+    void *data;
+} Nob_Walk_Dir_Opt;
+
+NOBDEF bool nob_walk_dir_opt(const char *root, Nob_Walk_Func func, Nob_Walk_Dir_Opt);
+
+#define nob_walk_dir(root, func, ...) nob_walk_dir_opt((root), (func), (Nob_Walk_Dir_Opt){__VA_ARGS__})
 
 #define nob_return_defer(value) do { result = (value); goto defer; } while(0)
 
@@ -287,8 +388,21 @@ typedef struct {
     size_t capacity;
 } Nob_String_Builder;
 
+#define nob_swap(T, a, b) do { T t = a; a = b; b = t; } while (0)
+
 NOBDEF bool nob_read_entire_file(const char *path, Nob_String_Builder *sb);
 NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...) NOB_PRINTF_FORMAT(2, 3);
+// Pads the String_Builder (sb) to the desired word size boundary with 0s.
+// Imagine we have sb that contains 5 `a`-s:
+//
+//   aaaa|a
+//
+// If we pad align it by size 4 it will look like this:
+//
+//   aaaa|a000| <- padded with 0s to the next size 4 boundary
+//
+// Useful when you are building some sort of binary format using String_Builder.
+NOBDEF void nob_sb_pad_align(Nob_String_Builder *sb, size_t size);
 
 // Append a sized buffer to a string builder
 #define nob_sb_append_buf(sb, buf, size) nob_da_append_many(sb, buf, size)
@@ -304,6 +418,8 @@ NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...) NOB_PRIN
 // Append a single NULL character at the end of a string builder. So then you can
 // use it a NULL-terminated C string
 #define nob_sb_append_null(sb) nob_da_append_many(sb, "", 1)
+
+#define nob_sb_append nob_da_append
 
 // Free the memory allocated by a string builder
 #define nob_sb_free(sb) NOB_FREE((sb).items)
@@ -333,11 +449,19 @@ typedef struct {
 
 // Wait until the process has finished
 NOBDEF bool nob_proc_wait(Nob_Proc proc);
+
 // Wait until all the processes have finished
 NOBDEF bool nob_procs_wait(Nob_Procs procs);
-// Wait until all the processes have finished and empty the procs array
+
+// Wait until all the processes have finished and empty the procs array.
+NOBDEF bool nob_procs_flush(Nob_Procs *procs);
+
+// Alias to nob_procs_flush
+NOB_DEPRECATED("Use `nob_procs_flush(&procs)` instead.")
 NOBDEF bool nob_procs_wait_and_reset(Nob_Procs *procs);
+
 // Append a new process to procs array and if procs.count reaches max_procs_count call nob_procs_wait_and_reset() on it
+NOB_DEPRECATED("Use `nob_cmd_run(&cmd, .async = &procs, .max_procs = <integer>)` instead")
 NOBDEF bool nob_procs_append_with_flush(Nob_Procs *procs, Nob_Proc proc, size_t max_procs_count);
 
 // A command - the main workhorse of Nob. Nob is all about building commands and running them
@@ -347,22 +471,36 @@ typedef struct {
     size_t capacity;
 } Nob_Cmd;
 
+// Options for nob_cmd_run_opt() function.
 typedef struct {
-    bool no_reset;              // Do not reset the cmd array and do not close the stdin, stdout, stderr files
-    Nob_Procs *async;           // Run the command asynchronously appending its Nob_Proc to the provided Nob_Procs array
-    Nob_Fd *fdin;               // Redirect stdin
-    Nob_Fd *fdout;              // Redirect stdout
-    Nob_Fd *fderr;              // Redirect stderr
+    // Run the command asynchronously appending its Nob_Proc to the provided Nob_Procs array
+    Nob_Procs *async;
+    // Maximum processes allowed in the .async list. Zero implies nob_nprocs().
+    size_t max_procs;
+    // Do not reset the command after execution.
+    bool dont_reset;
+    // Redirect stdin to file
+    const char *stdin_path;
+    // Redirect stdout to file
+    const char *stdout_path;
+    // Redirect stderr to file
+    const char *stderr_path;
 } Nob_Cmd_Opt;
 
+// Run the command with options.
 NOBDEF bool nob_cmd_run_opt(Nob_Cmd *cmd, Nob_Cmd_Opt opt);
 
-// See https://x.com/vkrajacic/status/1749816169736073295 for more info on how to use such macros
-#define nob_cmd_run(cmd, ...) nob_cmd_run_opt((cmd), (Nob_Cmd_Opt){__VA_ARGS__})
+// Get amount of processors on the machine.
+NOBDEF int nob_nprocs(void);
 
-// Starts the process for the command. Its main purpose is to be the base for nob_cmd_run() and nob_cmd_run_opt().
-// It's generally not recommended to call this function directly. Use nob_cmd_run() and nob_cmd_run_opt() instead.
-NOBDEF Nob_Proc nob_cmd_start_process(Nob_Cmd cmd, Nob_Fd *fdin, Nob_Fd *fdout, Nob_Fd *fderr);
+#define NOB_NANOS_PER_SEC (1000*1000*1000)
+
+// The maximum time span representable is 584 years.
+NOBDEF uint64_t nob_nanos_since_unspecified_epoch(void);
+
+// Same as nob_cmd_run_opt but using cool variadic macro to set the default options.
+// See https://x.com/vkrajacic/status/1749816169736073295 for more info on how to use such macros.
+#define nob_cmd_run(cmd, ...) nob_cmd_run_opt((cmd), (Nob_Cmd_Opt){__VA_ARGS__})
 
 // DEPRECATED:
 //
@@ -381,16 +519,12 @@ NOBDEF Nob_Proc nob_cmd_start_process(Nob_Cmd cmd, Nob_Fd *fdin, Nob_Fd *fdout, 
 // })) fail();
 // ```
 //
-// But these days you should do everything through nob_cmd_run:
+// But these days you should do:
 //
 // ```c
-// Nob_Fd fdin = nob_fd_open_for_read("input.txt");
-// if (fdin == NOB_INVALID_FD) fail();
-// Nob_Fd fdout = nob_fd_open_for_write("output.txt");
-// if (fdout == NOB_INVALID_FD) fail();
 // Nob_Cmd cmd = {0};
 // nob_cmd_append(&cmd, "cat");
-// if (!nob_cmd_run(&cmd, .stdin = &fdin, .stdout = &fdout)) fail();
+// if (!nob_cmd_run(&cmd, .stdin_path = "input.txt", .stdout_path = "output.txt")) fail();
 // ```
 typedef struct {
     Nob_Fd *fdin;
@@ -404,9 +538,7 @@ typedef struct {
 NOBDEF void nob_cmd_render(Nob_Cmd cmd, Nob_String_Builder *render);
 
 #define nob_cmd_append(cmd, ...) \
-    nob_da_append_many(cmd, \
-                       ((const char*[]){__VA_ARGS__}), \
-                       (sizeof((const char*[]){__VA_ARGS__})/sizeof(const char*)))
+    nob__cmd_append(cmd, (sizeof((const char*[]){__VA_ARGS__})/sizeof(const char*)), __VA_ARGS__)
 
 // TODO: nob_cmd_extend() evaluates other_cmd twice
 #define nob_cmd_extend(cmd, other_cmd) \
@@ -416,33 +548,34 @@ NOBDEF void nob_cmd_render(Nob_Cmd cmd, Nob_String_Builder *render);
 #define nob_cmd_free(cmd) NOB_FREE(cmd.items)
 
 // Run command asynchronously
-NOB_DEPRECATED("Use `nob_cmd_run(&cmd, .async = &procs, .no_reset = true)` instead.")
-NOBDEF Nob_Proc nob_cmd_run_async(Nob_Cmd *cmd);
+NOB_DEPRECATED("Use `nob_cmd_run(&cmd, .async = &procs, .dont_reset = true)`.")
+NOBDEF Nob_Proc nob_cmd_run_async(Nob_Cmd cmd);
 
 // nob_cmd_run_async_and_reset() is just like nob_cmd_run_async() except it also resets cmd.count to 0
 // so the Nob_Cmd instance can be seamlessly used several times in a row
-NOB_DEPRECATED("Use `nob_cmd_run(&cmd, .async = &procs)` intead")
+NOB_DEPRECATED("Use `nob_cmd_run(&cmd, .async = &procs)` intead.")
 NOBDEF Nob_Proc nob_cmd_run_async_and_reset(Nob_Cmd *cmd);
 
 // Run redirected command asynchronously
 NOB_DEPRECATED("Use `nob_cmd_run(&cmd, "
                ".async = &procs, "
-               ".stdin = &fdin, "
-               ".stdout = &fdout, "
-               ".stderr = &fderr, "
-               ".no_reset = true)` instead")
+               ".stdin_path = \"path/to/stdin\", "
+               ".stdout_path = \"path/to/stdout\", "
+               ".stderr_path = \"path/to/stderr\", "
+               ".dont_reset = true"
+               ")` instead.")
 NOBDEF Nob_Proc nob_cmd_run_async_redirect(Nob_Cmd cmd, Nob_Cmd_Redirect redirect);
 
 // Run redirected command asynchronously and set cmd.count to 0 and close all the opened files
 NOB_DEPRECATED("Use `nob_cmd_run(&cmd, "
                ".async = &procs, "
-               ".stdin = &fdin, "
-               ".stdout = &fdout, "
-               ".stderr = &fderr)` instead.")
+               ".stdin_path = \"path/to/stdin\", "
+               ".stdout_path = \"path/to/stdout\", "
+               ".stderr_path = \"path/to/stderr\")` instead.")
 NOBDEF Nob_Proc nob_cmd_run_async_redirect_and_reset(Nob_Cmd *cmd, Nob_Cmd_Redirect redirect);
 
 // Run command synchronously
-NOB_DEPRECATED("Use `nob_cmd_run(&cmd, .no_reset = true)` instead")
+NOB_DEPRECATED("Use `nob_cmd_run(&cmd, .dont_reset = true)` instead.")
 NOBDEF bool nob_cmd_run_sync(Nob_Cmd cmd);
 
 // NOTE: nob_cmd_run_sync_and_reset() is just like nob_cmd_run_sync() except it also resets cmd.count to 0
@@ -452,25 +585,28 @@ NOBDEF bool nob_cmd_run_sync_and_reset(Nob_Cmd *cmd);
 
 // Run redirected command synchronously
 NOB_DEPRECATED("Use `nob_cmd_run(&cmd, "
-               ".stdin = &fdin, "
-               ".stdout = &fdout, "
-               ".stderr = &fderr, "
-               ".no_reset = true)` instead.")
+               ".stdin_path  = \"path/to/stdin\", "
+               ".stdout_path = \"path/to/stdout\", "
+               ".stderr_path = \"path/to/stderr\", "
+               ".dont_reset = true"
+               ")` instead.")
 NOBDEF bool nob_cmd_run_sync_redirect(Nob_Cmd cmd, Nob_Cmd_Redirect redirect);
 
 // Run redirected command synchronously and set cmd.count to 0 and close all the opened files
-NOB_DEPRECATED("Use nob_cmd_run(&cmd, "
-               ".stdin = &fdin, "
-               ".stdout = &fdout, "
-               ".stderr = &fderr); instead.")
+NOB_DEPRECATED("Use `nob_cmd_run(&cmd, "
+               ".stdin_path = \"path/to/stdin\", "
+               ".stdout_path = \"path/to/stdout\", "
+               ".stderr_path = \"path/to/stderr\")` instead.")
 NOBDEF bool nob_cmd_run_sync_redirect_and_reset(Nob_Cmd *cmd, Nob_Cmd_Redirect redirect);
 
 #ifndef NOB_TEMP_CAPACITY
 #define NOB_TEMP_CAPACITY (8*1024*1024)
 #endif // NOB_TEMP_CAPACITY
 NOBDEF char *nob_temp_strdup(const char *cstr);
+NOBDEF char *nob_temp_strndup(const char *cstr, size_t size);
 NOBDEF void *nob_temp_alloc(size_t size);
 NOBDEF char *nob_temp_sprintf(const char *format, ...) NOB_PRINTF_FORMAT(1, 2);
+NOBDEF char *nob_temp_vsprintf(const char *format, va_list ap);
 // nob_temp_reset() - Resets the entire temporary storage to 0.
 //
 // It is generally not recommended to call this function ever. What you usually want to do is let's say you have a loop,
@@ -505,6 +641,11 @@ NOBDEF int nob_needs_rebuild1(const char *output_path, const char *input_path);
 NOBDEF int nob_file_exists(const char *file_path);
 NOBDEF const char *nob_get_current_dir_temp(void);
 NOBDEF bool nob_set_current_dir(const char *path);
+// Returns you the directory part of the path allocated on the temporary storage.
+NOBDEF char *nob_temp_dir_name(const char *path);
+NOBDEF char *nob_temp_file_name(const char *path);
+NOBDEF char *nob_temp_file_ext(const char *path);
+NOBDEF char *nob_temp_running_executable_path(void);
 
 // TODO: we should probably document somewhere all the compiler we support
 
@@ -520,6 +661,8 @@ NOBDEF bool nob_set_current_dir(const char *path);
 #       define nob_cc(cmd) nob_cmd_append(cmd, "clang")
 #    elif defined(_MSC_VER)
 #       define nob_cc(cmd) nob_cmd_append(cmd, "cl.exe")
+#    elif defined(__TINYC__)
+#       define nob_cc(cmd) nob_cmd_append(cmd, "tcc")
 #    endif
 #  else
 #    define nob_cc(cmd) nob_cmd_append(cmd, "cc")
@@ -532,11 +675,11 @@ NOBDEF bool nob_set_current_dir(const char *path);
 #  else
 #    define nob_cc_flags(cmd) nob_cmd_append(cmd, "-Wall", "-Wextra")
 #  endif
-#endif // nob_cc_output
+#endif // nob_cc_flags
 
 #ifndef nob_cc_output
 #  if defined(_MSC_VER) && !defined(__clang__)
-#    define nob_cc_output(cmd, output_path) nob_cmd_append(cmd, nob_temp_sprintf("/Fe:%s", (output_path)))
+#    define nob_cc_output(cmd, output_path) nob_cmd_append(cmd, nob_temp_sprintf("/Fe:%s", (output_path)), nob_temp_sprintf("/Fo:%s", (output_path)))
 #  else
 #    define nob_cc_output(cmd, output_path) nob_cmd_append(cmd, "-o", (output_path))
 #  endif
@@ -554,15 +697,29 @@ NOBDEF bool nob_set_current_dir(const char *path);
 //   user defined nob_cc_* macros instead?
 #ifndef NOB_REBUILD_URSELF
 #  if defined(_WIN32)
-#    if defined(__GNUC__)
-#       define NOB_REBUILD_URSELF(binary_path, source_path) "gcc", "-o", binary_path, source_path
-#    elif defined(__clang__)
-#       define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-o", binary_path, source_path
+#    if defined(__clang__)
+#      if defined(__cplusplus)
+#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c++", "-o", binary_path, source_path
+#      else
+#        define NOB_REBUILD_URSELF(binary_path, source_path) "clang", "-x", "c", "-o", binary_path, source_path
+#      endif
+#    elif defined(__GNUC__)
+#      if defined(__cplusplus)
+#        define NOB_REBUILD_URSELF(binary_path, source_path) "gcc", "-x", "c++", "-o", binary_path, source_path
+#      else
+#        define NOB_REBUILD_URSELF(binary_path, source_path) "gcc", "-x", "c", "-o", binary_path, source_path
+#      endif
 #    elif defined(_MSC_VER)
 #       define NOB_REBUILD_URSELF(binary_path, source_path) "cl.exe", nob_temp_sprintf("/Fe:%s", (binary_path)), source_path
+#    elif defined(__TINYC__)
+#       define NOB_REBUILD_URSELF(binary_path, source_path) "tcc", "-o", binary_path, source_path
 #    endif
 #  else
-#    define NOB_REBUILD_URSELF(binary_path, source_path) "cc", "-o", binary_path, source_path
+#    if defined(__cplusplus)
+#      define NOB_REBUILD_URSELF(binary_path, source_path) "cc", "-x", "c++", "-o", binary_path, source_path
+#    else
+#      define NOB_REBUILD_URSELF(binary_path, source_path) "cc", "-x", "c", "-o", binary_path, source_path
+#    endif
 #  endif
 #endif
 
@@ -638,68 +795,6 @@ NOBDEF Nob_String_View nob_sv_from_parts(const char *data, size_t count);
 //   String_View name = ...;
 //   printf("Name: "SV_Fmt"\n", SV_Arg(name));
 
-// DEPRECATED: Usage of the bundled minirent.h below is deprecated, because it introduces more
-// problems than it solves. It will be removed in the next major release of nob.h. In the meantime,
-// it is recommended to `#define NOB_NO_MINIRENT` if it causes problems for you.
-// TODO: Use NOB_DEPRECATED for minirent.h declarations
-
-// minirent.h HEADER BEGIN ////////////////////////////////////////
-// Copyright 2021 Alexey Kutepov <reximkut@gmail.com>
-//
-// Permission is hereby granted, free of charge, to any person obtaining
-// a copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to
-// the following conditions:
-//
-// The above copyright notice and this permission notice shall be
-// included in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-//
-// ============================================================
-//
-// minirent — 0.0.1 — A subset of dirent interface for Windows.
-//
-// https://github.com/tsoding/minirent
-//
-// ============================================================
-//
-// ChangeLog (https://semver.org/ is implied)
-//
-//    0.0.2 Automatically include dirent.h on non-Windows
-//          platforms
-//    0.0.1 First Official Release
-
-#if !defined(_WIN32) || defined(NOB_NO_MINIRENT)
-#include <dirent.h>
-#else // _WIN32
-
-#define WIN32_LEAN_AND_MEAN
-#include "windows.h"
-
-struct dirent
-{
-    char d_name[MAX_PATH+1];
-};
-
-typedef struct DIR DIR;
-
-static DIR *opendir(const char *dirpath);
-static struct dirent *readdir(DIR *dirp);
-static int closedir(DIR *dirp);
-
-#endif // _WIN32
-// minirent.h HEADER END ////////////////////////////////////////
-
 #ifdef _WIN32
 
 NOBDEF char *nob_win32_error_message(DWORD err);
@@ -710,8 +805,27 @@ NOBDEF char *nob_win32_error_message(DWORD err);
 
 #ifdef NOB_IMPLEMENTATION
 
+// This is like nob_proc_wait() but waits asynchronously. Depending on the platform ms means different thing.
+// On Windows it means timeout. On POSIX it means for how long to sleep after checking if the process exited,
+// so to not peg the core too much. Since this API is kinda of weird, the function is private for now.
+static int nob__proc_wait_async(Nob_Proc proc, int ms);
+
+// Starts the process for the command. Its main purpose is to be the base for nob_cmd_run() and nob_cmd_run_opt().
+static Nob_Proc nob__cmd_start_process(Nob_Cmd cmd, Nob_Fd *fdin, Nob_Fd *fdout, Nob_Fd *fderr);
+
 // Any messages with the level below nob_minimal_log_level are going to be suppressed.
 Nob_Log_Level nob_minimal_log_level = NOB_INFO;
+
+void nob__cmd_append(Nob_Cmd *cmd, size_t n, ...)
+{
+    va_list args;
+    va_start(args, n);
+    for (size_t i = 0; i < n; ++i) {
+        const char *arg = va_arg(args, const char *);
+        nob_da_append(cmd, arg);
+    }
+    va_end(args);
+}
 
 #ifdef _WIN32
 
@@ -819,20 +933,26 @@ NOBDEF bool nob_mkdir_if_not_exists(const char *path)
 #endif
     if (result < 0) {
         if (errno == EEXIST) {
+#ifndef NOB_NO_ECHO
             nob_log(NOB_INFO, "directory `%s` already exists", path);
+#endif // NOB_NO_ECHO
             return true;
         }
         nob_log(NOB_ERROR, "could not create directory `%s`: %s", path, strerror(errno));
         return false;
     }
 
+#ifndef NOB_NO_ECHO
     nob_log(NOB_INFO, "created directory `%s`", path);
+#endif // NOB_NO_ECHO
     return true;
 }
 
 NOBDEF bool nob_copy_file(const char *src_path, const char *dst_path)
 {
+#ifndef NOB_NO_ECHO
     nob_log(NOB_INFO, "copying %s -> %s", src_path, dst_path);
+#endif // NOB_NO_ECHO
 #ifdef _WIN32
     if (!CopyFile(src_path, dst_path, FALSE)) {
         nob_log(NOB_ERROR, "Could not copy file: %s", nob_win32_error_message(GetLastError()));
@@ -951,53 +1071,118 @@ static void nob__win32_cmd_quote(Nob_Cmd cmd, Nob_String_Builder *quoted)
 }
 #endif
 
+NOBDEF int nob_nprocs(void)
+{
+#ifdef _WIN32
+    SYSTEM_INFO siSysInfo;
+    GetSystemInfo(&siSysInfo);
+    return siSysInfo.dwNumberOfProcessors;
+#else
+    return sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+}
+
 NOBDEF bool nob_cmd_run_opt(Nob_Cmd *cmd, Nob_Cmd_Opt opt)
 {
-    Nob_Proc proc = nob_cmd_start_process(*cmd, opt.fdin, opt.fdout, opt.fderr);
+    bool result = true;
+    Nob_Fd fdin  = NOB_INVALID_FD;
+    Nob_Fd fdout = NOB_INVALID_FD;
+    Nob_Fd fderr = NOB_INVALID_FD;
+    Nob_Fd *opt_fdin  = NULL;
+    Nob_Fd *opt_fdout = NULL;
+    Nob_Fd *opt_fderr = NULL;
+    Nob_Proc proc = NOB_INVALID_PROC;
 
-    if (!opt.no_reset) {
-        cmd->count = 0;
-        if (opt.fdin) {
-            nob_fd_close(*opt.fdin);
-            *opt.fdin = NOB_INVALID_FD;
-        }
-        if (opt.fdout) {
-            nob_fd_close(*opt.fdout);
-            *opt.fdout = NOB_INVALID_FD;
-        }
-        if (opt.fderr) {
-            nob_fd_close(*opt.fderr);
-            *opt.fderr = NOB_INVALID_FD;
+    size_t max_procs = opt.max_procs > 0 ? opt.max_procs : (size_t) nob_nprocs() + 1;
+
+    if (opt.async && max_procs > 0) {
+        while (opt.async->count >= max_procs) {
+            for (size_t i = 0; i < opt.async->count; ++i) {
+                int ret = nob__proc_wait_async(opt.async->items[i], 1);
+                if (ret < 0) nob_return_defer(false);
+                if (ret) {
+                    nob_da_remove_unordered(opt.async, i);
+                    break;
+                }
+            }
         }
     }
+
+    if (opt.stdin_path) {
+        fdin = nob_fd_open_for_read(opt.stdin_path);
+        if (fdin == NOB_INVALID_FD) nob_return_defer(false);
+        opt_fdin = &fdin;
+    }
+    if (opt.stdout_path) {
+        fdout = nob_fd_open_for_write(opt.stdout_path);
+        if (fdout == NOB_INVALID_FD) nob_return_defer(false);
+        opt_fdout = &fdout;
+    }
+    if (opt.stderr_path) {
+        fderr = nob_fd_open_for_write(opt.stderr_path);
+        if (fderr == NOB_INVALID_FD) nob_return_defer(false);
+        opt_fderr = &fderr;
+    }
+    proc = nob__cmd_start_process(*cmd, opt_fdin, opt_fdout, opt_fderr);
 
     if (opt.async) {
-        if (proc == NOB_INVALID_PROC) return false;
+        if (proc == NOB_INVALID_PROC) nob_return_defer(false);
         nob_da_append(opt.async, proc);
     } else {
-        if (!nob_proc_wait(proc)) return false;
+        if (!nob_proc_wait(proc)) nob_return_defer(false);
     }
 
-    return true;
-}
-NOBDEF Nob_Proc nob_cmd_run_async_redirect(Nob_Cmd cmd, Nob_Cmd_Redirect redirect)
-{
-    return nob_cmd_start_process(cmd, redirect.fdin, redirect.fdout, redirect.fderr);
+defer:
+    if (opt_fdin)  nob_fd_close(*opt_fdin);
+    if (opt_fdout) nob_fd_close(*opt_fdout);
+    if (opt_fderr) nob_fd_close(*opt_fderr);
+    if (!opt.dont_reset) cmd->count = 0;
+    return result;
 }
 
-NOBDEF Nob_Proc nob_cmd_start_process(Nob_Cmd cmd, Nob_Fd *fdin, Nob_Fd *fdout, Nob_Fd *fderr)
+// The maximum time span representable is 584 years.
+NOBDEF uint64_t nob_nanos_since_unspecified_epoch(void)
+{
+#ifdef _WIN32
+    LARGE_INTEGER Time;
+    QueryPerformanceCounter(&Time);
+
+    static LARGE_INTEGER Frequency = {0};
+    if (Frequency.QuadPart == 0) {
+        QueryPerformanceFrequency(&Frequency);
+    }
+
+    uint64_t Secs  = Time.QuadPart / Frequency.QuadPart;
+    uint64_t Nanos = Time.QuadPart % Frequency.QuadPart * NOB_NANOS_PER_SEC / Frequency.QuadPart;
+    return NOB_NANOS_PER_SEC * Secs + Nanos;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+
+    return NOB_NANOS_PER_SEC * ts.tv_sec + ts.tv_nsec;
+#endif // _WIN32
+}
+
+NOBDEF Nob_Proc nob_cmd_run_async_redirect(Nob_Cmd cmd, Nob_Cmd_Redirect redirect)
+{
+    return nob__cmd_start_process(cmd, redirect.fdin, redirect.fdout, redirect.fderr);
+}
+
+static Nob_Proc nob__cmd_start_process(Nob_Cmd cmd, Nob_Fd *fdin, Nob_Fd *fdout, Nob_Fd *fderr)
 {
     if (cmd.count < 1) {
         nob_log(NOB_ERROR, "Could not run empty command");
         return NOB_INVALID_PROC;
     }
 
+#ifndef NOB_NO_ECHO
     Nob_String_Builder sb = {0};
     nob_cmd_render(cmd, &sb);
     nob_sb_append_null(&sb);
     nob_log(NOB_INFO, "CMD: %s", sb.items);
     nob_sb_free(sb);
     memset(&sb, 0, sizeof(sb));
+#endif // NOB_NO_ECHO
 
 #ifdef _WIN32
     // https://docs.microsoft.com/en-us/windows/win32/procthread/creating-a-child-process-with-redirected-input-and-output
@@ -1016,10 +1201,11 @@ NOBDEF Nob_Proc nob_cmd_start_process(Nob_Cmd cmd, Nob_Fd *fdin, Nob_Fd *fdout, 
     PROCESS_INFORMATION piProcInfo;
     ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
 
-    nob__win32_cmd_quote(cmd, &sb);
-    nob_sb_append_null(&sb);
-    BOOL bSuccess = CreateProcessA(NULL, sb.items, NULL, NULL, TRUE, 0, NULL, NULL, &siStartInfo, &piProcInfo);
-    nob_sb_free(sb);
+    Nob_String_Builder quoted = {0};
+    nob__win32_cmd_quote(cmd, &quoted);
+    nob_sb_append_null(&quoted);
+    BOOL bSuccess = CreateProcessA(NULL, quoted.items, NULL, NULL, TRUE, 0, NULL, NULL, &siStartInfo, &piProcInfo);
+    nob_sb_free(quoted);
 
     if (!bSuccess) {
         nob_log(NOB_ERROR, "Could not create child process for %s: %s", cmd.items[0], nob_win32_error_message(GetLastError()));
@@ -1075,21 +1261,21 @@ NOBDEF Nob_Proc nob_cmd_start_process(Nob_Cmd cmd, Nob_Fd *fdin, Nob_Fd *fdout, 
 #endif
 }
 
-NOBDEF Nob_Proc nob_cmd_run_async(Nob_Cmd *cmd)
+NOBDEF Nob_Proc nob_cmd_run_async(Nob_Cmd cmd)
 {
-    return nob_cmd_start_process(*cmd, NULL, NULL, NULL);
+    return nob__cmd_start_process(cmd, NULL, NULL, NULL);
 }
 
 NOBDEF Nob_Proc nob_cmd_run_async_and_reset(Nob_Cmd *cmd)
 {
-    Nob_Proc proc = nob_cmd_start_process(*cmd, NULL, NULL, NULL);
+    Nob_Proc proc = nob__cmd_start_process(*cmd, NULL, NULL, NULL);
     cmd->count = 0;
     return proc;
 }
 
 NOBDEF Nob_Proc nob_cmd_run_async_redirect_and_reset(Nob_Cmd *cmd, Nob_Cmd_Redirect redirect)
 {
-    Nob_Proc proc = nob_cmd_start_process(*cmd, redirect.fdin, redirect.fdout, redirect.fderr);
+    Nob_Proc proc = nob__cmd_start_process(*cmd, redirect.fdin, redirect.fdout, redirect.fderr);
     cmd->count = 0;
     if (redirect.fdin) {
         nob_fd_close(*redirect.fdin);
@@ -1192,11 +1378,16 @@ NOBDEF bool nob_procs_wait(Nob_Procs procs)
     return success;
 }
 
-NOBDEF bool nob_procs_wait_and_reset(Nob_Procs *procs)
+NOBDEF bool nob_procs_flush(Nob_Procs *procs)
 {
     bool success = nob_procs_wait(*procs);
     procs->count = 0;
     return success;
+}
+
+NOBDEF bool nob_procs_wait_and_reset(Nob_Procs *procs)
+{
+    return nob_procs_flush(procs);
 }
 
 NOBDEF bool nob_proc_wait(Nob_Proc proc)
@@ -1256,12 +1447,84 @@ NOBDEF bool nob_proc_wait(Nob_Proc proc)
 #endif
 }
 
+static int nob__proc_wait_async(Nob_Proc proc, int ms)
+{
+    if (proc == NOB_INVALID_PROC) return false;
+
+#ifdef _WIN32
+    DWORD result = WaitForSingleObject(
+                       proc,    // HANDLE hHandle,
+                       ms       // DWORD  dwMilliseconds
+                   );
+
+    if (result == WAIT_TIMEOUT) {
+        return 0;
+    }
+
+    if (result == WAIT_FAILED) {
+        nob_log(NOB_ERROR, "could not wait on child process: %s", nob_win32_error_message(GetLastError()));
+        return -1;
+    }
+
+    DWORD exit_status;
+    if (!GetExitCodeProcess(proc, &exit_status)) {
+        nob_log(NOB_ERROR, "could not get process exit code: %s", nob_win32_error_message(GetLastError()));
+        return -1;
+    }
+
+    if (exit_status != 0) {
+        nob_log(NOB_ERROR, "command exited with exit code %lu", exit_status);
+        return -1;
+    }
+
+    CloseHandle(proc);
+
+    return 1;
+#else
+    long ns = ms*1000*1000;
+    struct timespec duration = {
+        .tv_sec = ns/(1000*1000*1000),
+        .tv_nsec = ns%(1000*1000*1000),
+    };
+
+    int wstatus = 0;
+    pid_t pid = waitpid(proc, &wstatus, WNOHANG);
+    if (pid < 0) {
+        nob_log(NOB_ERROR, "could not wait on command (pid %d): %s", proc, strerror(errno));
+        return -1;
+    }
+
+    if (pid == 0) {
+        nanosleep(&duration, NULL);
+        return 0;
+    }
+
+    if (WIFEXITED(wstatus)) {
+        int exit_status = WEXITSTATUS(wstatus);
+        if (exit_status != 0) {
+            nob_log(NOB_ERROR, "command exited with exit code %d", exit_status);
+            return -1;
+        }
+
+        return 1;
+    }
+
+    if (WIFSIGNALED(wstatus)) {
+        nob_log(NOB_ERROR, "command process was terminated by signal %d", WTERMSIG(wstatus));
+        return -1;
+    }
+
+    nanosleep(&duration, NULL);
+    return 0;
+#endif
+}
+
 NOBDEF bool nob_procs_append_with_flush(Nob_Procs *procs, Nob_Proc proc, size_t max_procs_count)
 {
     nob_da_append(procs, proc);
 
     if (procs->count >= max_procs_count) {
-        if (!nob_procs_wait_and_reset(procs)) return false;
+        if (!nob_procs_flush(procs)) return false;
     }
 
     return true;
@@ -1269,26 +1532,26 @@ NOBDEF bool nob_procs_append_with_flush(Nob_Procs *procs, Nob_Proc proc, size_t 
 
 NOBDEF bool nob_cmd_run_sync_redirect(Nob_Cmd cmd, Nob_Cmd_Redirect redirect)
 {
-    Nob_Proc p = nob_cmd_start_process(cmd, redirect.fdin, redirect.fdout, redirect.fderr);
+    Nob_Proc p = nob__cmd_start_process(cmd, redirect.fdin, redirect.fdout, redirect.fderr);
     return nob_proc_wait(p);
 }
 
 NOBDEF bool nob_cmd_run_sync(Nob_Cmd cmd)
 {
-    Nob_Proc p = nob_cmd_start_process(cmd, NULL, NULL, NULL);
+    Nob_Proc p = nob__cmd_start_process(cmd, NULL, NULL, NULL);
     return nob_proc_wait(p);
 }
 
 NOBDEF bool nob_cmd_run_sync_and_reset(Nob_Cmd *cmd)
 {
-    Nob_Proc p = nob_cmd_start_process(*cmd, NULL, NULL, NULL);
+    Nob_Proc p = nob__cmd_start_process(*cmd, NULL, NULL, NULL);
     cmd->count = 0;
     return nob_proc_wait(p);
 }
 
 NOBDEF bool nob_cmd_run_sync_redirect_and_reset(Nob_Cmd *cmd, Nob_Cmd_Redirect redirect)
 {
-    Nob_Proc p = nob_cmd_start_process(*cmd, redirect.fdin, redirect.fdout, redirect.fderr);
+    Nob_Proc p = nob__cmd_start_process(*cmd, redirect.fdin, redirect.fdout, redirect.fderr);
     cmd->count = 0;
     if (redirect.fdin) {
         nob_fd_close(*redirect.fdin);
@@ -1305,7 +1568,19 @@ NOBDEF bool nob_cmd_run_sync_redirect_and_reset(Nob_Cmd *cmd, Nob_Cmd_Redirect r
     return nob_proc_wait(p);
 }
 
-NOBDEF void nob_log(Nob_Log_Level level, const char *fmt, ...)
+static nob_log_handler *nob__log_handler = &nob_default_log_handler;
+
+NOBDEF void nob_set_log_handler(nob_log_handler *handler)
+{
+    nob__log_handler = handler;
+}
+
+NOBDEF nob_log_handler *nob_get_log_handler(void)
+{
+    return nob__log_handler;
+}
+
+NOBDEF void nob_default_log_handler(Nob_Log_Level level, const char *fmt, va_list args)
 {
     if (level < nob_minimal_log_level) return;
 
@@ -1321,51 +1596,185 @@ NOBDEF void nob_log(Nob_Log_Level level, const char *fmt, ...)
         break;
     case NOB_NO_LOGS: return;
     default:
-        NOB_UNREACHABLE("nob_log");
+        NOB_UNREACHABLE("Nob_Log_Level");
     }
 
-    va_list args;
-    va_start(args, fmt);
     vfprintf(stderr, fmt, args);
-    va_end(args);
     fprintf(stderr, "\n");
 }
 
-NOBDEF bool nob_read_entire_dir(const char *parent, Nob_File_Paths *children)
+NOBDEF void nob_cancer_log_handler(Nob_Log_Level level, const char *fmt, va_list args)
 {
-    bool result = true;
-    DIR *dir = NULL;
-    struct dirent *ent = NULL;
+    switch (level) {
+    case NOB_INFO:
+        fprintf(stderr, "ℹ️ \x1b[36m[INFO]\x1b[0m ");
+        break;
+    case NOB_WARNING:
+        fprintf(stderr, "⚠️ \x1b[33m[WARNING]\x1b[0m ");
+        break;
+    case NOB_ERROR:
+        fprintf(stderr, "🚨 \x1b[31m[ERROR]\x1b[0m ");
+        break;
+    case NOB_NO_LOGS: return;
+    default:
+        NOB_UNREACHABLE("Nob_Log_Level");
+    }
 
-    dir = opendir(parent);
-    if (dir == NULL) {
-        #ifdef _WIN32
-        nob_log(NOB_ERROR, "Could not open directory %s: %s", parent, nob_win32_error_message(GetLastError()));
-        #else
-        nob_log(NOB_ERROR, "Could not open directory %s: %s", parent, strerror(errno));
-        #endif // _WIN32
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
+}
+
+NOBDEF void nob_log(Nob_Log_Level level, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    nob__log_handler(level, fmt, args);
+    va_end(args);
+}
+
+bool nob__walk_dir_opt_impl(Nob_String_Builder *sb, Nob_Walk_Func func, size_t level, bool *stop, Nob_Walk_Dir_Opt opt)
+{
+#ifdef _WIN32
+    bool result = true;
+    WIN32_FIND_DATA data;
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+
+    Nob_File_Type type = nob_get_file_type(sb->items);
+    if (type < 0) nob_return_defer(false);
+    Nob_Walk_Action action = NOB_WALK_CONT;
+    if (!func((Nob_Walk_Entry) {
+        .path = sb->items,
+        .type = type,
+        .data = opt.data,
+        .level = level,
+        .action = &action,
+    })) nob_return_defer(false);
+
+    switch (action) {
+    case NOB_WALK_CONT: break;
+    case NOB_WALK_STOP: *stop = true; // fallthrough
+    case NOB_WALK_SKIP: nob_return_defer(true);
+    default: NOB_UNREACHABLE("Nob_Walk_Action");
+    }
+
+    if (type != NOB_FILE_DIRECTORY) nob_return_defer(true);
+
+    {
+        size_t mark = nob_temp_save();
+        char *buffer = nob_temp_sprintf("%s\\*", sb->items);
+        hFind = FindFirstFile(buffer, &data);
+        nob_temp_rewind(mark);
+    }
+
+    if (hFind == INVALID_HANDLE_VALUE) {
+        nob_log(NOB_ERROR, "Could not open directory %s: %s", sb->items, nob_win32_error_message(GetLastError()));
         nob_return_defer(false);
     }
 
+    size_t mark = sb->count - 1;
+    for (;;) {
+        if (strcmp(data.cFileName, ".") != 0 && strcmp(data.cFileName, "..") != 0) {
+            sb->count = mark;
+            nob_sb_appendf(sb, "\\%s", data.cFileName);
+            nob_sb_append_null(sb);
+            if (!nob__walk_dir_opt_impl(sb, func, level+1, stop, opt)) nob_return_defer(false);
+            if (*stop) nob_return_defer(true);
+        }
+
+        if (!FindNextFile(hFind, &data)) {
+            if (GetLastError() == ERROR_NO_MORE_FILES) nob_return_defer(true);
+            nob_log(NOB_ERROR, "Could not read directory %s: %s", sb->items, nob_win32_error_message(GetLastError()));
+            nob_return_defer(false);
+        }
+    }
+
+defer:
+    FindClose(hFind);
+    return result;
+#else // POSIX
+    bool result = true;
+
+    DIR *dir = NULL;
+    size_t mark = 0;
+    struct dirent *ent = NULL;
+    Nob_Walk_Action action = NOB_WALK_CONT;
+
+    Nob_File_Type type = nob_get_file_type(sb->items);
+    if (type < 0) nob_return_defer(false);
+    if (!func((Nob_Walk_Entry) {
+        .path = sb->items,
+        .type = type,
+        .level = level,
+        .data = opt.data,
+        .action = &action,
+    })) nob_return_defer(false);
+
+    switch (action) {
+    case NOB_WALK_CONT: break;
+    case NOB_WALK_STOP: *stop = true; // fallthrough
+    case NOB_WALK_SKIP: nob_return_defer(true);
+    default: NOB_UNREACHABLE("Nob_Walk_Action");
+    }
+
+    if (type != NOB_FILE_DIRECTORY) nob_return_defer(true);
+
+    dir = opendir(sb->items);
+    if (dir == NULL) {
+        nob_log(NOB_ERROR, "Could not open directory %s: %s", sb->items, strerror(errno));
+        nob_return_defer(false);
+    }
+
+    mark = sb->count - 1;
     errno = 0;
     ent = readdir(dir);
     while (ent != NULL) {
-        nob_da_append(children, nob_temp_strdup(ent->d_name));
+        if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) {
+            sb->count = mark;
+            nob_sb_appendf(sb, "/%s", ent->d_name);
+            nob_sb_append_null(sb);
+            if (!nob__walk_dir_opt_impl(sb, func, level+1, stop, opt)) nob_return_defer(false);
+            if (*stop) nob_return_defer(true);
+        }
         ent = readdir(dir);
     }
 
     if (errno != 0) {
-        #ifdef _WIN32
-        nob_log(NOB_ERROR, "Could not read directory %s: %s", parent, nob_win32_error_message(GetLastError()));
-        #else
-        nob_log(NOB_ERROR, "Could not read directory %s: %s", parent, strerror(errno));
-        #endif // _WIN32
+        nob_log(NOB_ERROR, "Could not read directory %s: %s", sb->items, strerror(errno));
         nob_return_defer(false);
     }
 
 defer:
     if (dir) closedir(dir);
     return result;
+#endif // _WIN32
+}
+
+NOBDEF bool nob_walk_dir_opt(const char *root, Nob_Walk_Func func, Nob_Walk_Dir_Opt opt)
+{
+    bool stop = false;
+    Nob_String_Builder sb = {0};
+    nob_sb_appendf(&sb, "%s", root);
+    nob_sb_append_null(&sb);
+    bool ok = nob__walk_dir_opt_impl(&sb, func, 0, &stop, opt);
+    free(sb.items);
+    return ok;
+}
+
+bool nob__read_entire_dir_visit(Nob_Walk_Entry entry)
+{
+    if (entry.level == 1) {
+        Nob_File_Paths *children = (Nob_File_Paths*)entry.data;
+        nob_da_append(children, nob_temp_file_name(entry.path));
+    }
+    if (entry.level > 1) *entry.action = NOB_WALK_SKIP;
+    return true;
+}
+
+NOBDEF bool nob_read_entire_dir(const char *parent, Nob_File_Paths *children)
+{
+    nob_da_append(children, ".");
+    nob_da_append(children, "..");
+    return nob_walk_dir(parent, nob__read_entire_dir_visit, .data = children);
 }
 
 NOBDEF bool nob_write_entire_file(const char *path, const void *data, size_t size)
@@ -1429,7 +1838,9 @@ NOBDEF Nob_File_Type nob_get_file_type(const char *path)
 
 NOBDEF bool nob_delete_file(const char *path)
 {
+#ifndef NOB_NO_ECHO
     nob_log(NOB_INFO, "deleting %s", path);
+#endif // NOB_NO_ECHO
 #ifdef _WIN32
     if (!DeleteFileA(path)) {
         nob_log(NOB_ERROR, "Could not delete file %s: %s", path, nob_win32_error_message(GetLastError()));
@@ -1519,6 +1930,15 @@ NOBDEF char *nob_temp_strdup(const char *cstr)
     return result;
 }
 
+NOBDEF char *nob_temp_strndup(const char *s, size_t n)
+{
+    char *r = (char*)nob_temp_alloc(n + 1);
+    NOB_ASSERT(r != NULL && "Extend the size of the temporary allocator");
+    memcpy(r, s, n);
+    r[n] = '\0';
+    return r;
+}
+
 NOBDEF void *nob_temp_alloc(size_t requested_size)
 {
     size_t word_size = sizeof(uintptr_t);
@@ -1529,10 +1949,10 @@ NOBDEF void *nob_temp_alloc(size_t requested_size)
     return result;
 }
 
-NOBDEF char *nob_temp_sprintf(const char *format, ...)
+NOBDEF char *nob_temp_vsprintf(const char *format, va_list ap)
 {
     va_list args;
-    va_start(args, format);
+    va_copy(args, ap);
     int n = vsnprintf(NULL, 0, format, args);
     va_end(args);
 
@@ -1540,10 +1960,19 @@ NOBDEF char *nob_temp_sprintf(const char *format, ...)
     char *result = (char*)nob_temp_alloc(n + 1);
     NOB_ASSERT(result != NULL && "Extend the size of the temporary allocator");
     // TODO: use proper arenas for the temporary allocator;
-    va_start(args, format);
+    va_copy(args, ap);
     vsnprintf(result, n + 1, format, args);
     va_end(args);
 
+    return result;
+}
+
+NOBDEF char *nob_temp_sprintf(const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    char *result = nob_temp_vsprintf(format, args);
+    va_end(args);
     return result;
 }
 
@@ -1564,11 +1993,7 @@ NOBDEF void nob_temp_rewind(size_t checkpoint)
 
 NOBDEF const char *nob_temp_sv_to_cstr(Nob_String_View sv)
 {
-    char *result = (char*)nob_temp_alloc(sv.count + 1);
-    NOB_ASSERT(result != NULL && "Extend the size of the temporary allocator");
-    memcpy(result, sv.data, sv.count);
-    result[sv.count] = '\0';
-    return result;
+    return nob_temp_strndup(sv.data, sv.count);
 }
 
 NOBDEF int nob_needs_rebuild(const char *output_path, const char **input_paths, size_t input_paths_count)
@@ -1621,7 +2046,7 @@ NOBDEF int nob_needs_rebuild(const char *output_path, const char **input_paths, 
         nob_log(NOB_ERROR, "could not stat %s: %s", output_path, strerror(errno));
         return -1;
     }
-    int output_path_time = statbuf.st_mtime;
+    time_t output_path_time = statbuf.st_mtime;
 
     for (size_t i = 0; i < input_paths_count; ++i) {
         const char *input_path = input_paths[i];
@@ -1630,7 +2055,7 @@ NOBDEF int nob_needs_rebuild(const char *output_path, const char **input_paths, 
             nob_log(NOB_ERROR, "could not stat %s: %s", input_path, strerror(errno));
             return -1;
         }
-        int input_path_time = statbuf.st_mtime;
+        time_t input_path_time = statbuf.st_mtime;
         // NOTE: if even a single input_path is fresher than output_path that's 100% rebuild
         if (input_path_time > output_path_time) return 1;
     }
@@ -1659,7 +2084,9 @@ NOBDEF const char *nob_path_name(const char *path)
 
 NOBDEF bool nob_rename(const char *old_path, const char *new_path)
 {
+#ifndef NOB_NO_ECHO
     nob_log(NOB_INFO, "renaming %s -> %s", old_path, new_path);
+#endif // NOB_NO_ECHO
 #ifdef _WIN32
     if (!MoveFileEx(old_path, new_path, MOVEFILE_REPLACE_EXISTING)) {
         nob_log(NOB_ERROR, "could not rename %s to %s: %s", old_path, new_path, nob_win32_error_message(GetLastError()));
@@ -1686,7 +2113,7 @@ NOBDEF bool nob_read_entire_file(const char *path, Nob_String_Builder *sb)
 #ifndef _WIN32
     m = ftell(f);
 #else
-    m = _ftelli64(f);
+    m = _telli64(_fileno(f));
 #endif
     if (m < 0)                     nob_return_defer(false);
     if (fseek(f, 0, SEEK_SET) < 0) nob_return_defer(false);
@@ -1731,6 +2158,15 @@ NOBDEF int nob_sb_appendf(Nob_String_Builder *sb, const char *fmt, ...)
     sb->count += n;
 
     return n;
+}
+
+NOBDEF void nob_sb_pad_align(Nob_String_Builder *sb, size_t size)
+{
+    size_t rem = sb->count%size;
+    if (rem == 0) return;
+    for (size_t i = 0; i < size - rem; ++i) {
+        nob_da_append(sb, 0);
+    }
 }
 
 NOBDEF Nob_String_View nob_sv_chop_by_delim(Nob_String_View *sv, char delim)
@@ -1839,21 +2275,12 @@ NOBDEF bool nob_sv_starts_with(Nob_String_View sv, Nob_String_View expected_pref
 // RETURNS:
 //  0 - file does not exists
 //  1 - file exists
-// -1 - error while checking if file exists. The error is logged
 NOBDEF int nob_file_exists(const char *file_path)
 {
 #if _WIN32
-    // TODO: distinguish between "does not exists" and other errors
-    DWORD dwAttrib = GetFileAttributesA(file_path);
-    return dwAttrib != INVALID_FILE_ATTRIBUTES;
+    return GetFileAttributesA(file_path) != INVALID_FILE_ATTRIBUTES;
 #else
-    struct stat statbuf;
-    if (stat(file_path, &statbuf) < 0) {
-        if (errno == ENOENT) return 0;
-        nob_log(NOB_ERROR, "Could not check if file %s exists: %s", file_path, strerror(errno));
-        return -1;
-    }
-    return 1;
+    return access(file_path, F_OK) == 0;
 #endif
 }
 
@@ -1901,92 +2328,101 @@ NOBDEF bool nob_set_current_dir(const char *path)
 #endif // _WIN32
 }
 
-// minirent.h SOURCE BEGIN ////////////////////////////////////////
-#if defined(_WIN32) && !defined(NOB_NO_MINIRENT)
-struct DIR
+NOBDEF char *nob_temp_dir_name(const char *path)
 {
-    HANDLE hFind;
-    WIN32_FIND_DATA data;
-    struct dirent *dirent;
-};
-
-NOBDEF DIR *opendir(const char *dirpath)
-{
-    NOB_ASSERT(dirpath);
-
-    char buffer[MAX_PATH];
-    snprintf(buffer, MAX_PATH, "%s\\*", dirpath);
-
-    DIR *dir = (DIR*)NOB_REALLOC(NULL, sizeof(DIR));
-    memset(dir, 0, sizeof(DIR));
-
-    dir->hFind = FindFirstFile(buffer, &dir->data);
-    if (dir->hFind == INVALID_HANDLE_VALUE) {
-        // TODO: opendir should set errno accordingly on FindFirstFile fail
-        // https://docs.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
-        errno = ENOSYS;
-        goto fail;
-    }
-
-    return dir;
-
-fail:
-    if (dir) {
-        NOB_FREE(dir);
-    }
-
-    return NULL;
-}
-
-NOBDEF struct dirent *readdir(DIR *dirp)
-{
-    NOB_ASSERT(dirp);
-
-    if (dirp->dirent == NULL) {
-        dirp->dirent = (struct dirent*)NOB_REALLOC(NULL, sizeof(struct dirent));
-        memset(dirp->dirent, 0, sizeof(struct dirent));
-    } else {
-        if(!FindNextFile(dirp->hFind, &dirp->data)) {
-            if (GetLastError() != ERROR_NO_MORE_FILES) {
-                // TODO: readdir should set errno accordingly on FindNextFile fail
-                // https://docs.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
-                errno = ENOSYS;
-            }
-
-            return NULL;
-        }
-    }
-
-    memset(dirp->dirent->d_name, 0, sizeof(dirp->dirent->d_name));
-
-    strncpy(
-        dirp->dirent->d_name,
-        dirp->data.cFileName,
-        sizeof(dirp->dirent->d_name) - 1);
-
-    return dirp->dirent;
-}
-
-NOBDEF int closedir(DIR *dirp)
-{
-    NOB_ASSERT(dirp);
-
-    if(!FindClose(dirp->hFind)) {
-        // TODO: closedir should set errno accordingly on FindClose fail
-        // https://docs.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
-        errno = ENOSYS;
-        return -1;
-    }
-
-    if (dirp->dirent) {
-        NOB_FREE(dirp->dirent);
-    }
-    NOB_FREE(dirp);
-
-    return 0;
-}
+#ifndef _WIN32
+    // Stolen from the musl's implementation of dirname.
+    // We are implementing our own one because libc vendors cannot agree on whether dirname(3)
+    // modifies the path or not.
+    if (!path || !*path) return nob_temp_strdup(".");
+    size_t i = strlen(path) - 1;
+    for (; path[i] == '/'; i--) if (!i) return nob_temp_strdup("/");
+    for (; path[i] != '/'; i--) if (!i) return nob_temp_strdup(".");
+    for (; path[i] == '/'; i--) if (!i) return nob_temp_strdup("/");
+    return nob_temp_strndup(path, i + 1);
+#else
+    if (!path) path = ""; // Treating NULL as empty.
+    char *drive = nob_temp_alloc(_MAX_DRIVE);
+    char *dir   = nob_temp_alloc(_MAX_DIR);
+    // https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2010/8e46eyt7(v=vs.100)
+    errno_t ret = _splitpath_s(path, drive, _MAX_DRIVE, dir, _MAX_DIR, NULL, 0, NULL, 0);
+    NOB_ASSERT(ret == 0);
+    return nob_temp_sprintf("%s%s", drive, dir);
 #endif // _WIN32
-// minirent.h SOURCE END ////////////////////////////////////////
+}
+
+NOBDEF char *nob_temp_file_name(const char *path)
+{
+#ifndef _WIN32
+    // Stolen from the musl's implementation of dirname.
+    // We are implementing our own one because libc vendors cannot agree on whether basename(3)
+    // modifies the path or not.
+    if (!path || !*path) return nob_temp_strdup(".");
+    char *s = nob_temp_strdup(path);
+    size_t i = strlen(s)-1;
+    for (; i&&s[i]=='/'; i--) s[i] = 0;
+    for (; i&&s[i-1]!='/'; i--);
+    return s+i;
+#else
+    if (!path) path = ""; // Treating NULL as empty.
+    char *fname = nob_temp_alloc(_MAX_FNAME);
+    char *ext = nob_temp_alloc(_MAX_EXT);
+    // https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2010/8e46eyt7(v=vs.100)
+    errno_t ret = _splitpath_s(path, NULL, 0, NULL, 0, fname, _MAX_FNAME, ext, _MAX_EXT);
+    NOB_ASSERT(ret == 0);
+    return nob_temp_sprintf("%s%s", fname, ext);
+#endif // _WIN32
+}
+
+NOBDEF char *nob_temp_file_ext(const char *path)
+{
+#ifndef _WIN32
+    return strrchr(nob_temp_file_name(path), '.');
+#else
+    if (!path) path = ""; // Treating NULL as empty.
+    char *ext = nob_temp_alloc(_MAX_EXT);
+    // https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2010/8e46eyt7(v=vs.100)
+    errno_t ret = _splitpath_s(path, NULL, 0, NULL, 0, NULL, 0, ext, _MAX_EXT);
+    NOB_ASSERT(ret == 0);
+    return ext;
+#endif // _WIN32
+}
+
+NOBDEF char *nob_temp_running_executable_path(void)
+{
+#if defined(__linux__)
+    char buf[4096];
+    int length = readlink("/proc/self/exe", buf, NOB_ARRAY_LEN(buf));
+    if (length < 0) return nob_temp_strdup("");
+    return nob_temp_strndup(buf, length);
+#elif defined(_WIN32)
+    char buf[MAX_PATH];
+    int length = GetModuleFileNameA(NULL, buf, MAX_PATH);
+    return nob_temp_strndup(buf, length);
+#elif defined(__APPLE__)
+    char buf[4096];
+    uint32_t size = NOB_ARRAY_LEN(buf);
+    if (_NSGetExecutablePath(buf, &size) != 0) return nob_temp_strdup("");
+    int length = strlen(buf);
+    return nob_temp_strndup(buf, length);
+#elif defined(__FreeBSD__)
+    char buf[4096];
+    int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
+    size_t length = sizeof(buf);
+    if (sysctl(mib, 4, buf, &length, NULL, 0) < 0) return nob_temp_strdup("");
+    return nob_temp_strndup(buf, length);
+#elif defined(__HAIKU__)
+    int cookie = 0;
+    image_info info;
+    while (get_next_image_info(B_CURRENT_TEAM, &cookie, &info) == B_OK)
+        if (info.type == B_APP_IMAGE)
+            break;
+    return nob_temp_strndup(info.name, strlen(info.name));
+#else
+    fprintf(stderr, "%s:%d: TODO: nob_temp_running_executable_path is not implemented for this platform\n", __FILE__, __LINE__);
+    return nob_temp_strdup("");
+#endif
+}
 
 #endif // NOB_IMPLEMENTATION
 
@@ -1998,7 +2434,7 @@ NOBDEF int closedir(DIR *dirp)
     // of the file because NOB_IMPLEMENTATION needs the forward declarations from there. So the
     // solution is to split the header into two parts where the name stripping part is at the
     // end of the file after the NOB_IMPLEMENTATION.
-    #ifdef NOB_STRIP_PREFIX
+    #ifndef NOB_UNSTRIP_PREFIX
         #define TODO NOB_TODO
         #define UNREACHABLE NOB_UNREACHABLE
         #define UNUSED NOB_UNUSED
@@ -2010,11 +2446,18 @@ NOBDEF int closedir(DIR *dirp)
         #define NO_LOGS NOB_NO_LOGS
         #define Log_Level Nob_Log_Level
         #define minimal_log_level nob_minimal_log_level
+        #define log_handler nob_log_handler
+        #define set_log_handler nob_set_log_handler
+        #define get_log_handler nob_get_log_handler
+        #define default_log_handler nob_default_log_handler
+        #define cancer_log_handler nob_cancer_log_handler
         // NOTE: Name log is already defined in math.h and historically always was the natural logarithmic function.
         // So there should be no reason to strip the `nob_` prefix in this specific case.
         // #define log nob_log
         #define shift nob_shift
         #define shift_args nob_shift_args
+        #define GO_REBUILD_URSELF NOB_GO_REBUILD_URSELF
+        #define GO_REBUILD_URSELF_PLUS NOB_GO_REBUILD_URSELF_PLUS
         #define File_Paths Nob_File_Paths
         #define FILE_REGULAR NOB_FILE_REGULAR
         #define FILE_DIRECTORY NOB_FILE_DIRECTORY
@@ -2025,6 +2468,15 @@ NOBDEF int closedir(DIR *dirp)
         #define copy_file nob_copy_file
         #define copy_directory_recursively nob_copy_directory_recursively
         #define read_entire_dir nob_read_entire_dir
+        #define WALK_CONT NOB_WALK_CONT
+        #define WALK_SKIP NOB_WALK_SKIP
+        #define WALK_STOP NOB_WALK_STOP
+        #define Walk_Action Nob_Walk_Action
+        #define Walk_Entry Nob_Walk_Entry
+        #define Walk_Func Nob_Walk_Func
+        #define Walk_Dir_Opt Nob_Walk_Dir_Opt
+        #define walk_dir nob_walk_dir
+        #define walk_dir_opt nob_walk_dir_opt
         #define write_entire_file nob_write_entire_file
         #define get_file_type nob_get_file_type
         #define delete_file nob_delete_file
@@ -2037,12 +2489,15 @@ NOBDEF int closedir(DIR *dirp)
         #define da_last nob_da_last
         #define da_remove_unordered nob_da_remove_unordered
         #define da_foreach nob_da_foreach
+        #define swap nob_swap
         #define String_Builder Nob_String_Builder
         #define read_entire_file nob_read_entire_file
         #define sb_appendf nob_sb_appendf
         #define sb_append_buf nob_sb_append_buf
         #define sb_append_cstr nob_sb_append_cstr
         #define sb_append_null nob_sb_append_null
+        #define sb_append nob_sb_append
+        #define sb_pad_align nob_sb_pad_align
         #define sb_free nob_sb_free
         #define Proc Nob_Proc
         #define INVALID_PROC NOB_INVALID_PROC
@@ -2056,12 +2511,12 @@ NOBDEF int closedir(DIR *dirp)
         #define procs_wait nob_procs_wait
         #define procs_wait_and_reset nob_procs_wait_and_reset
         #define procs_append_with_flush nob_procs_append_with_flush
+        #define procs_flush nob_procs_flush
         #define Cmd Nob_Cmd
         #define Cmd_Redirect Nob_Cmd_Redirect
         #define Cmd_Opt Nob_Cmd_Opt
         #define cmd_run_opt nob_cmd_run_opt
         #define cmd_run nob_cmd_run
-        #define cmd_start_process nob_cmd_start_process
         #define cmd_render nob_cmd_render
         #define cmd_append nob_cmd_append
         #define cmd_extend nob_cmd_extend
@@ -2075,8 +2530,10 @@ NOBDEF int closedir(DIR *dirp)
         #define cmd_run_sync_redirect nob_cmd_run_sync_redirect
         #define cmd_run_sync_redirect_and_reset nob_cmd_run_sync_redirect_and_reset
         #define temp_strdup nob_temp_strdup
+        #define temp_strndup nob_temp_strndup
         #define temp_alloc nob_temp_alloc
         #define temp_sprintf nob_temp_sprintf
+        #define temp_vsprintf nob_temp_vsprintf
         #define temp_reset nob_temp_reset
         #define temp_save nob_temp_save
         #define temp_rewind nob_temp_rewind
@@ -2088,6 +2545,10 @@ NOBDEF int closedir(DIR *dirp)
         #define file_exists nob_file_exists
         #define get_current_dir_temp nob_get_current_dir_temp
         #define set_current_dir nob_set_current_dir
+        #define temp_dir_name nob_temp_dir_name
+        #define temp_file_name nob_temp_file_name
+        #define temp_file_ext nob_temp_file_ext
+        #define temp_running_executable_path nob_temp_running_executable_path
         #define String_View Nob_String_View
         #define temp_sv_to_cstr nob_temp_sv_to_cstr
         #define sv_chop_by_delim nob_sv_chop_by_delim
@@ -2102,15 +2563,97 @@ NOBDEF int closedir(DIR *dirp)
         #define sv_from_parts nob_sv_from_parts
         #define sb_to_sv nob_sb_to_sv
         #define win32_error_message nob_win32_error_message
+        #define nprocs nob_nprocs
+        #define nanos_since_unspecified_epoch nob_nanos_since_unspecified_epoch
+        #define NANOS_PER_SEC NOB_NANOS_PER_SEC
     #endif // NOB_STRIP_PREFIX
 #endif // NOB_STRIP_PREFIX_GUARD_
 
 /*
    Revision history:
 
-     1.23.0 (2025-08-15) Add nob_cmd_run(), nob_cmd_run_opt(), nob_cmd_start_process(), Nob_Cmd_Opt and deprecate all other nob_cmd_run_* functions (by @rexim)
+      3.0.0 (2026-01-13) Improve C++ support (by @rexim)
+                           - Fix various C++ compilers warnings and complains throughout the code.
+                           - Reimplement nob_cmd_append() without taking a pointer to temporary array (some C++ compilers don't like that)
+                           - Make default NOB_REBUILD_URSELF() try to recompile with C++ if __cplusplus macro is defined
+                         Strip prefixes by default (by @rexim)
+                           - Ignore NOB_STRIP_PREFIX macro
+                           - Introduce NOB_UNSTRIP_PREFIX macro
+                           BACKWARD INCOMPATIBLE CHANGE!!! If you had code that intentionally didn't enable NOB_STRIP_PREFIX
+                           because all the names from nob.h were causing too many collisions for you, upgrading to 3.0.0 may break it.
+                           In that case you should go and explicitly enable NOB_UNSTRIP_PREFIX where needed after upgrading.
+                         Add nob_sb_append alias to nob_da_append (by @rexim)
+      2.0.1 (2026-01-07) Fix Walk_Entry naming (by @Sinha-Ujjawal)
+                         Using single String Builder in nob__walk_dir_opt_impl (by @Sinha-Ujjawal)
+                         Add tcc to nob_cc_*() and NOB_REBUILD_URSELF() macros (by @vylsaz)
+                         Fix building nob_read_entire_file() with tcc on windows  (by @vylsaz)
+                         Fix Y2038 in nob_needs_rebuild() (by @lnvitesace)
+      2.0.0 (2026-01-06) Remove minirent.h (by @rexim)
+                           BACKWARD INCOMPATIBLE CHANGE!!! If you were using minirent.h from this library
+                           just use it directly from https://github.com/tsoding/minirent
+                           or consider using the New Directory Walking API.
+                         Introduce New Directory Walking API (by @rexim)
+                           - NOB_WALK_CONT
+                           - NOB_WALK_SKIP
+                           - NOB_WALK_STOP
+                           - Nob_Walk_Action
+                           - Nob_Walk_Entry
+                           - Nob_Walk_Func
+                           - Nob_Walk_Dir_Opt
+                           - nob_walk_dir()
+                           - nob_walk_dir_opt()
+                         Add support for Haiku to nob_temp_running_executable_path() (By @Cephon)
+                         Make nob_file_exists() unfailable (By @rexim)
+     1.27.0 (2025-12-30) Add .dont_reset option to cmd_run (by @Israel77)
+                         Fix support for FreeBSD (by @cqundefine)
+                         Strip prefixes from NOB_GO_REBUILD_URSELF and NOB_GO_REBUILD_URSELF_PLUS (by @huwwa)
+                         Add /Fo flag to MSVC version of nob_cc_output() (by @ratchetfreak)
+     1.26.0 (2025-12-28) Introduce customizable log handlers (by @rexim)
+                           - Add nob_log_handler
+                           - Add nob_set_log_handler
+                           - Add nob_get_log_handler
+                           - Add nob_default_log_handler
+                           - Add nob_cancer_log_handler
+                         Introduce nob_temp_vsprintf (by @rexim)
+                         Fix compilation error on Windows when NOB_NO_ECHO is enabled (by @mlorenc227)
+                         Do not redefine _CRT_SECURE_NO_WARNINGS if it's already defined (by @vylsaz)
+     1.25.1 (2025-11-06) Fix forward declaration of _NSGetExecutablePath on MacOS (by @agss0)
+     1.25.0 (2025-10-25)   - Add nob_sb_pad_align()
+                           - Add nob_swap()
+                           - Add nob_temp_strndup()
+                           - Add nob_temp_dir_name()
+                           - Add nob_temp_file_name()
+                           - Add nob_temp_file_ext()
+                           - Add nob_temp_running_executable_path()
+     1.24.0 (2025-10-23) Introduce NOB_NO_ECHO macro flag (@rexim)
+     1.23.0 (2025-08-22) Introduce new API for running commands (by @rexim, @programmerlexi, @0x152a)
+                           - Add nob_cmd_run()
+                           - Add nob_cmd_run_opt()
+                           - Add struct Nob_Cmd_Opt
+                           - Add nob_procs_flush()
+                           - Add nob_nprocs()
+                         Deprecate old API for running commands. (by @rexim)
+                           We do not plan to delete this API any time, but we believe that the new one is more convenient.
+                           - Deprecate struct Nob_Cmd_Redirect{} (it's not explicitly marked with NOB_DEPRECATED, but functions that use it are)
+                           - Turn nob_cmd_run_async() into a function (otherwise it's not deprecatable with NOB_DEPRECATED)
+                           - Deprecate nob_cmd_run_async()
+                           - Deprecate nob_cmd_run_async_and_reset()
+                           - Deprecate nob_cmd_run_async_redirect()
+                           - Deprecate nob_cmd_run_async_redirect_and_reset()
+                           - Deprecate nob_cmd_run_sync()
+                           - Deprecate nob_cmd_run_sync_and_reset()
+                           - Deprecate nob_cmd_run_sync_redirect()
+                           - Deprecate nob_cmd_run_sync_redirect_and_reset()
+                           - Deprecate nob_procs_append_with_flush()
+                           - Deprecate nob_procs_wait_and_reset()
+                         Introduce deprecation mechanism (by @yuI4140, @rexim)
+                           By default, deprecation warnings are not reported. You have to #define NOB_WARN_DEPRECATED to enable them.
+                           - Add NOB_DEPRECATED()
+                           - Add NOB_WARN_DEPRECATED
                          Add NOB_DECLTYPE_CAST() for C++-compatible casting of allocation results (by @rexim)
-                         Add NOB_DEPRECATED() (by @yuI4140)
+                         Introduce basic performance measuring mechanism (By @mikmart)
+                           - Add nob_nanos_since_unspecified_epoch()
+                           - Add NOB_NANOS_PER_SEC
      1.22.0 (2025-08-12) Add NOBDEF macro to the beginning of function declarations (by @minefreak19)
                          Add more flags to MSVC nob_cc_flags() (by @PieVieRo)
      1.21.0 (2025-08-11) Add NOB_NO_MINIRENT guard for "minirent.h" (by @fietec)
@@ -2187,12 +2730,14 @@ NOBDEF int closedir(DIR *dirp)
         and let them co-exist for a while.
       - MAJOR update should be just a periodic cleanup of the DEPRECATED functions and types
         without really modifying any existing functionality.
+      - Breaking backward compatibility in a MINOR release should be considered a bug and
+        should be promptly fixed in the next PATCH release.
 
    Naming Conventions:
 
       - All the user facing names should be prefixed with `nob_` or `NOB_` depending on the case.
-      - The prefixes of non-redefinable names should be strippable with NOB_STRIP_PREFIX (unless
-        explicitly stated otherwise like in case of nob_log).
+      - The prefixes of non-redefinable names should be stripped in NOB_STRIP_PREFIX_GUARD_ section,
+        unless explicitly stated otherwise like in case of nob_log() or nob_rename().
       - Internal functions should be prefixed with `nob__` (double underscore).
 */
 
