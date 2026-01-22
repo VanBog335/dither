@@ -71,10 +71,12 @@ int main(int argc, char **argv)
 	int32_t p = 0;
 	int8_t verboseOutput = 0;
 	uint8_t autoOutputFormat = 'p';
+	uint8_t shouldBeResized = 0;
 
 	char tmp[256] = "\0";
 
 	int32_t w, h;
+	int32_t new_w, new_h;
 	char *outName = NULL;
 	uint8_t *data = NULL;
 	uint8_t *yChannel = NULL;
@@ -114,8 +116,17 @@ int main(int argc, char **argv)
 	if ((p = vb_checkArgWithParams("-s", 2))) {
 		if (verboseOutput)
 			printf("Size: %s x %s\n", argv[p+1], argv[p+2]);
-		// WIP
+
+		new_w = atoi(argv[p+1]);
+		new_h = atoi(argv[p+2]);
+		shouldBeResized = 1;
 	}
+
+	if ((p = vb_checkArgWithParams("-r", 1))) {
+		if (verboseOutput)
+			printf("Rotate %s\n", argv[p+1]);
+		// wip
+}
 	
 	if ((p = vb_checkArgWithParams("-R", 1))) {
 		if (verboseOutput)
@@ -203,8 +214,6 @@ int main(int argc, char **argv)
 			};
 		}
 	}
-	
-	
 
 
 	if (STR_ENDING(argv[1],".png") || STR_ENDING(argv[1],".jpg")) {
@@ -228,6 +237,51 @@ int main(int argc, char **argv)
 		printf("Wrong input format. Use png, jpg or qoi\n");
 		return 2;
 	}
+	
+// -------- resizing and rotating here --------
+
+	if (shouldBeResized) {
+		if (!new_w) {
+			printf("Incorrect width, used original instead\n");
+			new_w = w;
+		}
+
+		if (!new_h) {
+			printf("Incorrect height, used original instead\n");
+			new_h = h;
+		}
+
+		if (new_w < 0 && new_h < 0) {
+			printf("Dont know what resolution to use? oklol, original used instead\n");
+			new_w = w;
+			new_h = h;
+		}
+
+		if (new_w < 0 && new_h > 0) {
+			printf("calc w\n");
+			new_w = (new_h * w) / h;
+		}
+
+		if (new_h < 0 && new_w > 0) {
+			printf("calc h\n");
+			new_h = (new_w * h) / w;
+		}
+
+		uint8_t *resizedata = stbir_resize_uint8_srgb(data, w, h, 0, resizedata, new_w, new_h, 0, 4);
+		if (!resizedata) {
+			printf("Fuckd up to alloc memory for u\n");
+			vb_da_ptr_destroy();
+			return 1;
+		}
+
+		w = new_w;
+		h = new_h;
+
+		vb_free(data);
+		data = resizedata;
+	}
+
+// ---------------------------------------------
 
 	if (lumaOn) {
 		yChannel = vb_alloc(w * h);
@@ -244,6 +298,8 @@ int main(int argc, char **argv)
 			}
 		}
 	}
+
+
 
 	if (lumaOn) {
 		if (!dither(yChannel, w, h, dithType, lumaBits, 1, 0) ||
