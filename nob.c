@@ -11,6 +11,11 @@ int main(int argc, char **argv)
 	vb_setVbArgc(argc);
 	vb_setVbArgv(argv);
 	
+	if (vb_checkArg("-h") || vb_checkArg("--help")) {
+		printf("-release        compiles release version in ./build\r\n-clib           compiles libs in ./obj/libs-platform.o\n");
+		return 0;
+	}
+	
 	if (vb_checkArg("-clib")) {
 		nob_log(NOB_INFO, "Compiling lib");
 		nob_cc(&cmd);
