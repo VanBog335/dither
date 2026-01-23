@@ -13,7 +13,7 @@ uint8_t *rotate_rgba90(const uint8_t *in, uint8_t *out, size_t width, size_t hei
 		if (!out) return NULL;
 	}
 
-	if (dir == ROTATE_CW) {
+	if (dir == ROT_CW) {
 		for (size_t y = 0; y < height; ++y) {
 			for (size_t x = 0; x < width; ++x) {
 				size_t in_idx = (y * width + x) * 4;

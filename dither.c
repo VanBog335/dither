@@ -28,6 +28,7 @@
 #define SIMPLEDITHER 2
 
 #include "funcs/dither.h"
+#include "funcs/rotate90.h"
 #include "funcs/usage.h"
 
 /*
@@ -72,11 +73,13 @@ int main(int argc, char **argv)
 	int8_t verboseOutput = 0;
 	uint8_t autoOutputFormat = 'p';
 	uint8_t shouldBeResized = 0;
+	uint8_t shouldBeRotated = 0;
 
 	char tmp[256] = "\0";
 
 	int32_t w, h;
 	int32_t new_w, new_h;
+	RotateDirection rotation = ROT_CW;
 	char *outName = NULL;
 	uint8_t *data = NULL;
 	uint8_t *yChannel = NULL;
@@ -125,7 +128,11 @@ int main(int argc, char **argv)
 	if ((p = vb_checkArgWithParams("-r", 1))) {
 		if (verboseOutput)
 			printf("Rotate %s\n", argv[p+1]);
-		// wip
+
+		shouldBeRotated = 1;
+		if (!strcasecmp("ccw", argv[p+1])) {
+			rotation = ROT_CCW;
+		}
 }
 	
 	if ((p = vb_checkArgWithParams("-R", 1))) {
@@ -267,7 +274,8 @@ int main(int argc, char **argv)
 			new_h = (new_w * h) / w;
 		}
 
-		uint8_t *resizedata = stbir_resize_uint8_srgb(data, w, h, 0, resizedata, new_w, new_h, 0, 4);
+		uint8_t *resizedata =  0;
+		resizedata = stbir_resize_uint8_srgb(data, w, h, 0, resizedata, new_w, new_h, 0, 4);
 		if (!resizedata) {
 			printf("Fuckd up to alloc memory for u\n");
 			vb_da_ptr_destroy();
@@ -279,6 +287,24 @@ int main(int argc, char **argv)
 
 		vb_free(data);
 		data = resizedata;
+	}
+	
+	if (shouldBeRotated) {
+		uint8_t *rotatedata = 0;
+		rotatedata = rotate_rgba90(data, rotatedata, w, h, rotation);
+		if (!rotatedata) {
+			printf("Fuckd up to alloc memory for u\n");
+			vb_da_ptr_destroy();
+			return 1;
+		}
+		
+		// evil xor swap trick
+		w ^= h;
+		h ^= w;
+		w ^= h;
+
+		vb_free(data);
+		data = rotatedata;
 	}
 
 // ---------------------------------------------
