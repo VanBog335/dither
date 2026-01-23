@@ -33,7 +33,11 @@ int main(int argc, char **argv)
 		  //nob_cmd_append(&cmd, "-static-libgcc");
 		#endif
 		
-		nob_cc_output(&cmd, "dither");
+		if (vb_checkArg("-release"))
+			nob_cc_output(&cmd, "build/dither");
+		else
+			nob_cc_output(&cmd, "dither");
+		
 		nob_cc_inputs(&cmd, "dither.c");
 		#if defined(_WIN32)
 		  nob_cc_inputs(&cmd, "obj/libs-win.o");
