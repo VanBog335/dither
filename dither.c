@@ -247,6 +247,24 @@ int main(int argc, char **argv)
 	
 // -------- resizing and rotating here --------
 
+	if (shouldBeRotated) {
+		uint8_t *rotatedata = 0;
+		rotatedata = rotate_rgba90(data, rotatedata, w, h, rotation);
+		if (!rotatedata) {
+			printf("Fuckd up to alloc memory for u\n");
+			vb_da_ptr_destroy();
+			return 1;
+		}
+		
+		// evil xor swap trick
+		w ^= h;
+		h ^= w;
+		w ^= h;
+
+		vb_free(data);
+		data = rotatedata;
+	}
+
 	if (shouldBeResized) {
 		if (!new_w) {
 			printf("Incorrect width, used original instead\n");
@@ -287,24 +305,6 @@ int main(int argc, char **argv)
 
 		vb_free(data);
 		data = resizedata;
-	}
-	
-	if (shouldBeRotated) {
-		uint8_t *rotatedata = 0;
-		rotatedata = rotate_rgba90(data, rotatedata, w, h, rotation);
-		if (!rotatedata) {
-			printf("Fuckd up to alloc memory for u\n");
-			vb_da_ptr_destroy();
-			return 1;
-		}
-		
-		// evil xor swap trick
-		w ^= h;
-		h ^= w;
-		w ^= h;
-
-		vb_free(data);
-		data = rotatedata;
 	}
 
 // ---------------------------------------------
