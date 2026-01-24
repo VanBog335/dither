@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 
-static inline uint8_t clampU8(int32_t v) {
+inline uint8_t clampU8(int32_t v) {
 	return v < 0 ? 0 : (v > 255 ? 255 : v);
 }
 

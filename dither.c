@@ -1,4 +1,4 @@
-// dither - v0.10.0 - by vb :) 
+// dither - v0.11.0 - by vb :) 
 
 #include "libs/stb_image.h"
 #include "libs/stb_image_write.h"
@@ -63,12 +63,14 @@ int main(int argc, char **argv)
 	uint8_t autoOutputFormat = 'p';
 	uint8_t shouldBeResized = 0;
 	uint8_t shouldBeRotated = 0;
+	uint8_t shouldGamma = 0;
 
 	char tmp[256] = "\0";
 
 	int32_t w, h;
 	int32_t new_w, new_h;
 	RotateDirection rotation = ROT_CW;
+	int16_t gammaValue = 0;
 	char *outName = NULL;
 	uint8_t *data = NULL;
 	uint8_t *yChannel = NULL;
@@ -112,6 +114,13 @@ int main(int argc, char **argv)
 		new_w = atoi(argv[p+1]);
 		new_h = atoi(argv[p+2]);
 		shouldBeResized = 1;
+	}
+
+	if ((p = vb_checkArgWithParams("-g", 1))) {
+		if (verboseOutput)
+			printf("Gamma: %s\n", argv[p+1]);
+		gammaValue = atoi(argv[p+1]);
+		shouldGamma = 1;
 	}
 
 	if ((p = vb_checkArgWithParams("-r", 1))) {
@@ -298,6 +307,7 @@ int main(int argc, char **argv)
 	}
 // --------------------------------------------
 
+
 	if (lumaOn) {
 		yChannel = vb_alloc(w * h);
 		for (int i = 0; i < w*h; i++) {
@@ -312,7 +322,16 @@ int main(int argc, char **argv)
 					yChannel[i] = (17216*data[i*4] + 44434*data[i*4+1] + 3886*data[i*4+2] + 32768) >> 16;
 			}
 		}
+
+		if (shouldGamma) {
+			if (verboseOutput)
+				printf("Calculate gamma\n");
+			for (int i = 0; i < w*h; i++) {
+				yChannel[i] = clampU8( yChannel[i] + gammaValue );
+			}
+		}
 	}
+
 
 	// -------- applying dithering --------
 	if (lumaOn) {

@@ -11,6 +11,10 @@ Output formats: png, qoi
 	luminance only
 	[default: false]
 
+-g <num>
+	gamma for luma channel
+	[default: false]
+
 -d <no/floyd/2d>
 	dither type
 	[default: floyd]
@@ -39,6 +43,7 @@ Output formats: png, qoi
 	resize image
 	if negative number in one of parameters provided,
 	calculate that parameter to keep aspect ratio
+	[default: false]
 
 -r <CW/CCW>
 	rotate image
