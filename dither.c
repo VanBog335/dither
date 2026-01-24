@@ -14,8 +14,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
-#include <errno.h>
-#include <ctype.h>
 
 #define max(x, y) (((x) > (y)) ? (x) : (y))
 #define min(x, y) (((x) < (y)) ? (x) : (y))
@@ -30,15 +28,6 @@
 #include "funcs/dither.h"
 #include "funcs/rotate90.h"
 #include "funcs/usage.h"
-
-/*
-stbir_resize( data, w, h, 0,
-              outData, diffw, diffh, 0,
-              STBIR_RGBA, STBIR_TYPE_UINT8, STBIR_EDGE_CLAMP,
-              STBIR_FILTER_DEFAULT ); // STBIR_1CHANNEL
-*/
-
-
 
 int main(int argc, char **argv)
 {
@@ -84,24 +73,24 @@ int main(int argc, char **argv)
 	uint8_t *data = NULL;
 	uint8_t *yChannel = NULL;
 
-
+	// -------- parsing flags --------
 	if (vb_checkArg("-v")) {
 		printf("Toggled verbose output\n");
 		verboseOutput = 1;
 	}
-	
+
 	if (vb_checkArg("-y")) {
 		if (verboseOutput)
 			printf("Luma on\n");
 		lumaOn = 1;
 	}
-	
+
 	if (vb_checkArg("--force")) {
 		if (verboseOutput)
 			printf("Forced overwrite\n");
 		forceOverwrite=1;
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-d", 1))) {
 		if (verboseOutput)
 			printf("Dither type: %s\n", argv[p+1]);
@@ -109,13 +98,13 @@ int main(int argc, char **argv)
 		if (!strcmp("floyd", argv[p+1])) dithType = 1; 
 		if (!strcmp("2d", argv[p+1])) dithType = 2; 
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-f", 1))) {
 		if (verboseOutput)
 			printf("Luma type: %s\n", argv[p+1]);
 		lumaType = atoi(argv[p+1]);
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-s", 2))) {
 		if (verboseOutput)
 			printf("Size: %s x %s\n", argv[p+1], argv[p+2]);
@@ -133,75 +122,75 @@ int main(int argc, char **argv)
 		if (!strcasecmp("ccw", argv[p+1])) {
 			rotation = ROT_CCW;
 		}
-}
-	
+	}
+
 	if ((p = vb_checkArgWithParams("-R", 1))) {
 		if (verboseOutput)
 			printf("R: %s\n", argv[p+1]);
 		redBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-G", 1))) {
 		if (verboseOutput)
 			printf("G: %s\n", argv[p+1]);
 		greenBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-B", 1))) {
 		if (verboseOutput)
 			printf("B: %s\n", argv[p+1]);
 		blueBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-A", 1))) {
 		if (verboseOutput)
 			printf("A: %s\n", argv[p+1]);
 		alphaBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-Y", 1))) {
 		if (verboseOutput)
 			printf("Y: %s\n", argv[p+1]);
 		lumaBits = (int)(atof(argv[p+1])*10)%10 == 0 ? atoi(argv[p+1]) : atof(argv[p+1])*10;
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-O", 1))) {
 		if (verboseOutput)
 			printf("Output extention: %s\n", argv[p+1]);
 		if (!strcmp(argv[p+1], "qoi")) autoOutputFormat = 'q';
 	}
-	
+
 	if ((p = vb_checkArgWithParams("-o", 1))) {
 		if (verboseOutput)
 			printf("Output filename: %s\n", argv[p+1]);
 		outName = argv[p+1];
 	}
-
+	// -------------------------------
 
 	// giving filename and checking if file exists
-	if (outName == NULL) {
+	if (!outName) {
 		char* last_dot = strrchr(argv[1], '.');
 		if (!last_dot) {
-			printf("Error: Input file has no extension.\n");
+			printf("[ERROR] Input file has no extension.\n");
 			vb_da_ptr_destroy();
 			return 1;
 		}
-		
+
 		size_t base_len = last_dot - argv[1];
-		
+
 		size_t needed_len = base_len + 10;
 		outName = vb_alloc(needed_len);
 		if (!outName) {
-			printf("Error: Memory allocation failed.\n");
+			printf("[ERROR] Memory allocation failed.\n");
 			vb_da_ptr_destroy();
 			return 1;
 		}
-		
+
 		int written = snprintf(outName, needed_len, "%.*s%s", 
 				(int)base_len, argv[1], autoOutputFormat == 'q' ? "-d.qoi" : "-d.png");
-		
+
 		if (written < 0 || (size_t)written >= needed_len) {
-			printf("Error: Failed to construct output filename.\n");
+			printf("[ERROR] Failed to construct output filename.\n");
 			vb_da_ptr_destroy();
 			return 1;
 		}
@@ -218,7 +207,7 @@ int main(int argc, char **argv)
 			if (strcmp(tmp, "y")) {
 				vb_da_ptr_destroy();
 				return 2;
-			};
+			}
 		}
 	}
 
@@ -226,14 +215,14 @@ int main(int argc, char **argv)
 	if (STR_ENDING(argv[1],".png") || STR_ENDING(argv[1],".jpg")) {
 		data = stbi_load(argv[1], &w, &h, NULL, 4);
 		if (!data) {
-			printf("Failed to load %s\n", argv[1]);
+			printf("[ERROR] Failed to load %s\n", argv[1]);
 			return 1;
 		}
 	} else if (STR_ENDING(argv[1], ".qoi")) {
 		qoi_desc desc;
 		data = qoi_read(argv[1], &desc, 4);
 		if (!data) {
-			printf("Failed to load %s\n", argv[1]);
+			printf("[ERROR] Failed to load %s\n", argv[1]);
 			return 1;
 		}
 		w = desc.width;
@@ -241,21 +230,20 @@ int main(int argc, char **argv)
 	}
 
 	if (!data) {
-		printf("Wrong input format. Use png, jpg or qoi\n");
+		printf("[ERROR] Wrong input format. Use png, jpg or qoi\n");
 		return 2;
 	}
-	
-// -------- resizing and rotating here --------
 
+// -------- resizing and rotating here --------
 	if (shouldBeRotated) {
 		uint8_t *rotatedata = 0;
 		rotatedata = rotate_rgba90(data, rotatedata, w, h, rotation);
 		if (!rotatedata) {
-			printf("Fuckd up to alloc memory for u\n");
+			printf("[ERROR] Memory allocation failed.\n");
 			vb_da_ptr_destroy();
 			return 1;
 		}
-		
+
 		// evil xor swap trick
 		w ^= h;
 		h ^= w;
@@ -267,35 +255,37 @@ int main(int argc, char **argv)
 
 	if (shouldBeResized) {
 		if (!new_w) {
-			printf("Incorrect width, used original instead\n");
+			printf("[WARN] Incorrect width, used original instead\n");
 			new_w = w;
 		}
 
 		if (!new_h) {
-			printf("Incorrect height, used original instead\n");
+			printf("[WARN] Incorrect height, used original instead\n");
 			new_h = h;
 		}
 
 		if (new_w < 0 && new_h < 0) {
-			printf("Dont know what resolution to use? oklol, original used instead\n");
+			printf("[WARN] Dont know what resolution to use? oklol, original used instead\n");
 			new_w = w;
 			new_h = h;
 		}
 
 		if (new_w < 0 && new_h > 0) {
-			printf("calc w\n");
+			if (verboseOutput)
+				printf("Calculate w\n");
 			new_w = (new_h * w) / h;
 		}
 
 		if (new_h < 0 && new_w > 0) {
-			printf("calc h\n");
+			if (verboseOutput)
+				printf("Calculate h\n");
 			new_h = (new_w * h) / w;
 		}
 
 		uint8_t *resizedata =  0;
 		resizedata = stbir_resize_uint8_srgb(data, w, h, 0, resizedata, new_w, new_h, 0, 4);
 		if (!resizedata) {
-			printf("Fuckd up to alloc memory for u\n");
+			printf("[ERROR] Memory allocation failed.\n");
 			vb_da_ptr_destroy();
 			return 1;
 		}
@@ -306,8 +296,7 @@ int main(int argc, char **argv)
 		vb_free(data);
 		data = resizedata;
 	}
-
-// ---------------------------------------------
+// --------------------------------------------
 
 	if (lumaOn) {
 		yChannel = vb_alloc(w * h);
@@ -325,8 +314,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-
-
+	// -------- applying dithering --------
 	if (lumaOn) {
 		if (!dither(yChannel, w, h, dithType, lumaBits, 1, 0) ||
 			!dither(data, w, h, dithType, alphaBits, 4, 3)
@@ -355,8 +343,7 @@ int main(int argc, char **argv)
 			data[i * 4 + 3] = 0;
 		}
 	}
-
-
+	// ------------------------------------
 
 	if (STR_ENDING(outName, ".png")) {
 		encoded = stbi_write_png(outName, w, h, 4, data, w * 4);
@@ -365,12 +352,11 @@ int main(int argc, char **argv)
 	}
 
 	if (!encoded) {
-		printf("Failed to write %s\n", outName);
+		printf("[ERROR] Failed to write %s\n", outName);
 		vb_da_ptr_destroy();
 		return 2;
 	}
 
 	vb_da_ptr_destroy();
-
 	return 0;
 }
