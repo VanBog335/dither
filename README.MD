@@ -9,7 +9,7 @@ Types of dithering:
 - No (regular quantization)
 
 Additional features:
-- Bitrate per channel adjustment
+- Bits per channel adjustment
 - Grayscale
 - Image rotation and resizing
 - Gamma correction (only for grayscale)
@@ -20,3 +20,4 @@ Additional features:
 ## Usage
 
 run `./dither` without arguments or with `-h`, `-help` or `--help` flag or see helptext.txt
+
