@@ -21,3 +21,7 @@ Additional features:
 
 run `./dither` without arguments or with `-h`, `-help` or `--help` flag or see helptext.txt
 
+#Compilation
+
+compile `nob.c` and run it  
+if needed, run `nob` with parameter `-clib` amd then just run `nob`
